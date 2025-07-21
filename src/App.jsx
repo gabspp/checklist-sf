@@ -63,7 +63,6 @@ const TASKS_CONFIG = {
   },
   fechamento: {
     'sábado': [
-      '⚙️ desligar moinho e máquina de café',
       '❄️ guardar encomendas na geladeira',
       '🧼 lavar porta filtros',
       '🧹 limpar gaveta de borra de café',
@@ -92,7 +91,6 @@ const TASKS_CONFIG = {
       '❄️ guardar produtos na geladeira'
     ],
     default: [
-      '⚙️ desligar moinho e máquina de café',
       '❄️ guardar encomendas na geladeira',
       '🧼 lavar porta filtros',
       '🧹 limpar gaveta de borra de café',
