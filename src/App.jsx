@@ -6,7 +6,7 @@ import './App.css'
 
 // Configuração do webhook - pode ser alterada conforme necessário
 const WEBHOOK_CONFIG = {
-  url: 'https://n8n.gabrielpicanco.site/webhook/4925206b-8560-4390-9ec9-f2632c140fca', // Substitua pela URL real do n8n
+  url: 'https://n8n.gabrielpicanco.site/webhook-test/4925206b-8560-4390-9ec9-f2632c140fca', // Substitua pela URL real do n8n
   timeout: 10000, // 10 segundos
   retries: 3
 }
