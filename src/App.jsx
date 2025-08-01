@@ -19,8 +19,10 @@ const TASKS_CONFIG = {
       '☕ ligar máquina de café',
       '💧 encher galão d\'água',
       '💰 abrir caixa',
+      '💳 conferir bateria das máquinas de cartão',
       '🧽 pegar perfex',
       '🍪 conferir crocantes',
+      '📋 conferir estoque itens takeat',
       '🏪 montar vitrine de produtos',
       '📦 estoque coado P & G',
       '🔧 pegar porta filtros',
@@ -35,15 +37,18 @@ const TASKS_CONFIG = {
       '💧 encher reservas de água',
       '📱 verificar estoque ifood',
       '🍯 repor açúcar',
-      '🏷️ fazer etiquetas de validade'
+      '🏷️ fazer etiquetas de validade',
+      '📆 fazer papel do mês'
     ],
     default: [
       '🗑️ organizar lixeiras',
       '☕ ligar máquina de café',
       '💧 encher galão d\'água',
       '💰 abrir caixa',
+      '💳 conferir bateria das máquinas de cartão',
       '🧽 pegar perfex',
       '🍪 conferir crocantes',
+      '📋 conferir estoque itens takeat',
       '🏪 montar vitrine de produtos',
       '📦 estoque coado P & G',
       '🔧 pegar porta filtros',
@@ -58,7 +63,8 @@ const TASKS_CONFIG = {
       '💧 encher reservas de água',
       '📱 verificar estoque ifood',
       '🍯 repor açúcar',
-      '🏷️ fazer etiquetas de validade'
+      '🏷️ fazer etiquetas de validade',
+      '📆 fazer papel do mês'
     ]
   },
   fechamento: {
