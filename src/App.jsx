@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button.jsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card.jsx'
-import { CheckCircle, Users, ClipboardList, MessageSquare, Calendar, Send, AlertCircle, Wifi, WifiOff } from 'lucide-react'
+import { CheckCircle, Users, ClipboardList, MessageSquare, Calendar, Send, AlertCircle, Wifi, WifiOff, Lock, Store, Link as LinkIcon, ExternalLink } from 'lucide-react'
+import { AdminLogin } from '@/components/AdminLogin.jsx'
+import { AdminDashboard } from '@/components/AdminDashboard.jsx'
+import { StoreSelection } from '@/components/StoreSelection.jsx'
 import './App.css'
 
 // Configuração do webhook - pode ser alterada conforme necessário
@@ -11,8 +14,8 @@ const WEBHOOK_CONFIG = {
   retries: 3
 }
 
-// Definição das tarefas por tipo e dia
-const TASKS_CONFIG = {
+// Configuração padrão de tarefas
+const COMMON_TASKS = {
   abertura: {
     'segunda-feira': [
       '🗑️ organizar lixeiras',
@@ -88,7 +91,7 @@ const TASKS_CONFIG = {
       '📱 finalizar comandas no takeat',
       '🍯 guardar bolinho de mel',
       '🧹 limpar grade máquina de café',
-      '⚙️ desligar moinho de café', 
+      '⚙️ desligar moinho de café',
       '☕ limpar gaveta bate borra',
       '☕ desligar máquina de café',
       '❄️ desligar ar condicionado',
@@ -116,7 +119,7 @@ const TASKS_CONFIG = {
       '📱 finalizar comandas no takeat',
       '🍯 guardar bolinho de mel',
       '🧹 limpar grade máquina de café',
-      '⚙️ desligar moinho de café', 
+      '⚙️ desligar moinho de café',
       '☕ limpar gaveta bate borra',
       '☕ desligar máquina de café',
       '❄️ desligar ar condicionado',
@@ -127,12 +130,41 @@ const TASKS_CONFIG = {
   }
 }
 
-// Utilitários para localStorage
-const STORAGE_KEY = 'checklist-progress'
+// Nova estrutura unificada com checkboxes por loja
+const DEFAULT_USERS = [
+  { name: 'Maria', stores: ['248'] },
+  { name: 'Karla', stores: ['248'] },
+  { name: 'Thamiris', stores: ['26'] },
+  { name: 'Raíssa', stores: ['26'] }
+]
 
+// Converte tarefas para formato com stores
+const convertTasksToUnifiedFormat = (tasks) => {
+  const result = {}
+  for (const [listType, days] of Object.entries(tasks)) {
+    result[listType] = {}
+    for (const [day, taskList] of Object.entries(days)) {
+      result[listType][day] = taskList.map(task => ({
+        text: typeof task === 'string' ? task : task.text,
+        link: typeof task === 'string' ? '' : (task.link || ''),
+        stores: ['248', '26'] // Por padrão, todas as tarefas estão em ambas as lojas
+      }))
+    }
+  }
+  return result
+}
+
+const DEFAULT_TASKS = convertTasksToUnifiedFormat(COMMON_TASKS)
+
+// Chaves do LocalStorage
+const STORAGE_KEY_PROGRESS = 'checklist-progress'
+const STORAGE_KEY_USERS = 'checklist-users-v2'
+const STORAGE_KEY_TASKS = 'checklist-tasks-v2'
+
+// Utilitários para localStorage
 const saveProgress = (data) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    localStorage.setItem(STORAGE_KEY_PROGRESS, JSON.stringify(data))
   } catch (error) {
     console.error('Erro ao salvar progresso:', error)
   }
@@ -140,7 +172,7 @@ const saveProgress = (data) => {
 
 const loadProgress = () => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
+    const saved = localStorage.getItem(STORAGE_KEY_PROGRESS)
     return saved ? JSON.parse(saved) : null
   } catch (error) {
     console.error('Erro ao carregar progresso:', error)
@@ -150,9 +182,28 @@ const loadProgress = () => {
 
 const clearProgress = () => {
   try {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY_PROGRESS)
   } catch (error) {
     console.error('Erro ao limpar progresso:', error)
+  }
+}
+
+// Funções para persistência de configuração
+const saveConfig = (key, data) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (error) {
+    console.error(`Erro ao salvar configuração (${key}):`, error)
+  }
+}
+
+const loadConfig = (key, defaultValue) => {
+  try {
+    const saved = localStorage.getItem(key)
+    return saved ? JSON.parse(saved) : defaultValue
+  } catch (error) {
+    console.error(`Erro ao carregar configuração (${key}):`, error)
+    return defaultValue
   }
 }
 
@@ -161,7 +212,7 @@ const sendWebhook = async (data, retryCount = 0) => {
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), WEBHOOK_CONFIG.timeout)
-    
+
     const response = await fetch(WEBHOOK_CONFIG.url, {
       method: 'POST',
       headers: {
@@ -170,26 +221,26 @@ const sendWebhook = async (data, retryCount = 0) => {
       body: JSON.stringify(data),
       signal: controller.signal
     })
-    
+
     clearTimeout(timeoutId)
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    
+
     return { success: true, data: await response.json() }
   } catch (error) {
     console.error(`Tentativa ${retryCount + 1} falhou:`, error)
-    
+
     if (retryCount < WEBHOOK_CONFIG.retries - 1) {
       // Aguardar antes de tentar novamente (backoff exponencial)
       await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000))
       return sendWebhook(data, retryCount + 1)
     }
-    
-    return { 
-      success: false, 
-      error: error.name === 'AbortError' ? 'Timeout' : error.message 
+
+    return {
+      success: false,
+      error: error.name === 'AbortError' ? 'Timeout' : error.message
     }
   }
 }
@@ -197,7 +248,7 @@ const sendWebhook = async (data, retryCount = 0) => {
 // Função para verificar conectividade
 const checkConnectivity = async () => {
   try {
-    const response = await fetch('https://httpbin.org/get', { 
+    const response = await fetch('https://httpbin.org/get', {
       method: 'HEAD',
       mode: 'no-cors'
     })
@@ -207,52 +258,48 @@ const checkConnectivity = async () => {
   }
 }
 
-// Função para obter tarefas baseadas no tipo e dia
-const getTasks = (listType, dayOfWeek) => {
-  const config = TASKS_CONFIG[listType]
-  if (!config) return []
-  
-  const dayKey = dayOfWeek.toLowerCase()
-  return config[dayKey] || config.default
-}
-
 // Função para obter informações do dia atual
 const getCurrentDayInfo = () => {
   const today = new Date()
   const dayOfWeek = today.toLocaleDateString('pt-BR', { weekday: 'long' })
   const date = today.toISOString().split('T')[0]
   const time = today.toTimeString().split(' ')[0].substring(0, 5)
-  
+
   return { dayOfWeek, date, time }
 }
 
 // Componente de Seleção de Usuário
-function UserSelection({ onUserSelect }) {
-  const users = ['Maria', 'Karla', 'Thamiris', 'Raíssa']
+function UserSelection({ storeId, users, onUserSelect, onAdminClick, onBack }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
-  
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
-    
+
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-    
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
-  
+
   return (
-    <div className="checklist-container fade-in">
+    <div className="checklist-container fade-in relative">
+      <div className="absolute top-4 left-4 z-10">
+        <Button variant="ghost" onClick={onBack} className="text-gray-500 hover:text-gray-700">
+          ← Voltar
+        </Button>
+      </div>
+
       <Card className="checklist-card">
         <CardHeader className="text-center space-y-4">
           <div className="bounce-in">
-            <Users className="w-16 h-16 mx-auto text-blue-600" />
+            <Users className="w-16 h-16 mx-auto text-blue-600 dark:text-blue-400" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-800">
-            Selecione o Funcionário
+            Loja {storeId} - Funcionários
           </CardTitle>
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-2 text-gray-600">
@@ -286,6 +333,13 @@ function UserSelection({ onUserSelect }) {
               {user}
             </button>
           ))}
+          {users.length === 0 && (
+            <div className="text-center p-4 text-gray-500">
+              Nenhum funcionário cadastrado nesta loja.
+              <br />
+              Acesse a área administrativa para adicionar.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -298,13 +352,13 @@ function ListSelection({ user, onListSelect, onBack }) {
     { id: 'abertura', name: 'Abertura', icon: '🌅', description: 'Checklist de início do expediente' },
     { id: 'fechamento', name: 'Fechamento', icon: '🌙', description: 'Checklist de fim do expediente' }
   ]
-  
+
   return (
     <div className="checklist-container fade-in">
       <Card className="checklist-card">
         <CardHeader className="text-center space-y-4">
           <div className="bounce-in">
-            <ClipboardList className="w-16 h-16 mx-auto text-blue-600" />
+            <ClipboardList className="w-16 h-16 mx-auto text-blue-600 dark:text-blue-400" />
           </div>
           <CardTitle className="text-2xl font-bold text-gray-800">
             Olá, {user}!
@@ -345,42 +399,58 @@ function ListSelection({ user, onListSelect, onBack }) {
 }
 
 // Componente de Checklist
-function ChecklistView({ user, listType, onComplete, onBack }) {
+function ChecklistView({ user, storeId, listType, tasksConfig, onComplete, onBack }) {
   const dayInfo = getCurrentDayInfo()
+
+  // Lógica para obter tarefas filtradas por loja
+  const getTasks = (type, dayOfWeek) => {
+    const config = tasksConfig[type]
+    if (!config) return []
+
+    // Tenta encontrar pelo dia específico ou usa o default
+    const dayKey = dayOfWeek.toLowerCase()
+    const allTasks = config[dayKey] || config.default || []
+
+    // Filtra tarefas ativas na loja atual
+    return allTasks.filter(task => task.stores && task.stores.includes(storeId))
+  }
+
   const tasks = getTasks(listType, dayInfo.dayOfWeek)
-  
+
   // Estado para tarefas completadas
   const [completedTasks, setCompletedTasks] = useState(new Set())
-  
+
   // Carregar progresso salvo ao montar o componente
   useEffect(() => {
     const savedProgress = loadProgress()
-    if (savedProgress && 
-        savedProgress.user === user && 
-        savedProgress.listType === listType &&
-        savedProgress.date === dayInfo.date) {
+    if (savedProgress &&
+      savedProgress.user === user &&
+      savedProgress.storeId === storeId &&
+      savedProgress.listType === listType &&
+      savedProgress.date === dayInfo.date) {
       setCompletedTasks(new Set(savedProgress.completedTaskIndices))
     }
-  }, [user, listType, dayInfo.date])
-  
+  }, [user, storeId, listType, dayInfo.date])
+
   // Salvar progresso sempre que houver mudanças
   useEffect(() => {
     const progressData = {
       user,
+      storeId,
       listType,
       date: dayInfo.date,
       dayOfWeek: dayInfo.dayOfWeek,
       completedTaskIndices: Array.from(completedTasks),
-      tasks,
+      tasks, // Salva tarefas atuais para referência
       timestamp: new Date().toISOString()
     }
     saveProgress(progressData)
-  }, [completedTasks, user, listType, dayInfo.date, dayInfo.dayOfWeek, tasks])
-  
+  }, [completedTasks, user, storeId, listType, dayInfo.date, dayInfo.dayOfWeek, tasks])
+
   const progress = completedTasks.size
   const total = tasks.length
   const isComplete = progress === total
-  
+
   const toggleTask = (index) => {
     const newCompleted = new Set(completedTasks)
     if (newCompleted.has(index)) {
@@ -390,12 +460,49 @@ function ChecklistView({ user, listType, onComplete, onBack }) {
     }
     setCompletedTasks(newCompleted)
   }
-  
+
   const handleComplete = () => {
     const completedTaskNames = tasks.filter((_, index) => completedTasks.has(index))
     onComplete(completedTaskNames)
   }
-  
+
+  // Renderiza tarefa (suporta string ou objeto se implementarmos edição avançada depois)
+  const renderTaskContent = (task) => {
+    if (typeof task === 'string') return task
+    return (
+      <div className="flex items-center gap-2">
+        <span>{task.text}</span>
+        {task.link && (
+          <a
+            href={task.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  if (tasks.length === 0) {
+    return (
+      <div className="checklist-container fade-in">
+        <Card className="checklist-card">
+          <CardHeader>
+            <CardTitle className="text-center">Sem Tarefas</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-gray-600">Não há tarefas configuradas para {listType === 'abertura' ? 'Abertura' : 'Fechamento'} nesta loja ({storeId}) hoje.</p>
+            <button onClick={onBack} className="secondary-button">Voltar</button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="checklist-container fade-in">
       <Card className="checklist-card">
@@ -404,16 +511,16 @@ function ChecklistView({ user, listType, onComplete, onBack }) {
             {listType === 'abertura' ? '🌅 Abertura' : '🌙 Fechamento'}
           </CardTitle>
           <div className="text-center space-y-3">
-            <p className="text-gray-600 text-lg font-medium">{user} • {dayInfo.dayOfWeek}</p>
+            <p className="text-gray-600 text-lg font-medium">Loja {storeId} • {user}</p>
             <div className="progress-card">
               <div className="text-center mb-3">
-                <span className="text-4xl font-bold text-blue-600">
+                <span className="text-4xl font-bold text-blue-600 dark:text-blue-400">
                   {progress}/{total}
                 </span>
                 <p className="text-gray-600 font-medium">tarefas concluídas</p>
               </div>
               <div className="progress-bar">
-                <div 
+                <div
                   className="progress-fill"
                   style={{ width: `${total > 0 ? (progress / total) * 100 : 0}%` }}
                 ></div>
@@ -422,34 +529,33 @@ function ChecklistView({ user, listType, onComplete, onBack }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-3">
+          <div className="space-y-3 task-grid-container">
             {tasks.map((task, index) => (
               <div
                 key={index}
-                className={`task-item ${
-                  completedTasks.has(index) ? 'task-item-complete' : 'task-item-incomplete'
-                } slide-up`}
+                className={`task-item ${completedTasks.has(index) ? 'task-item-complete' : 'task-item-incomplete'
+                  } slide-up`}
                 style={{ animationDelay: `${index * 0.1}s` }}
                 onClick={() => toggleTask(index)}
               >
-                <div className={`task-checkbox ${
-                  completedTasks.has(index) ? 'task-checkbox-complete' : 'task-checkbox-incomplete'
-                }`}>
+                <div className={`task-checkbox ${completedTasks.has(index) ? 'task-checkbox-complete' : 'task-checkbox-incomplete'
+                  }`}>
                   {completedTasks.has(index) && (
                     <CheckCircle className="w-5 h-5 text-white" />
                   )}
                 </div>
-                <span className={`flex-1 text-left font-medium ${
-                  completedTasks.has(index) 
-                    ? 'line-through text-gray-500' 
+                <div className="flex-1 flex flex-col">
+                  <div className={`text-left font-medium ${completedTasks.has(index)
+                    ? 'line-through text-gray-500'
                     : 'text-gray-900'
-                }`}>
-                  {task}
-                </span>
+                    }`}>
+                    {renderTaskContent(task)}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-          
+
           <div className="space-y-3">
             <button
               onClick={handleComplete}
@@ -472,41 +578,42 @@ function ChecklistView({ user, listType, onComplete, onBack }) {
 }
 
 // Componente de Finalização
-function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
+function CompletionView({ user, storeId, listType, completedTasks, onSubmit, onBack }) {
   const [comments, setComments] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState(null) // 'success', 'error', null
   const [errorMessage, setErrorMessage] = useState('')
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const dayInfo = getCurrentDayInfo()
-  
+
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
-    
+
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-    
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
   }, [])
-  
+
   const handleSubmit = async () => {
     setIsSubmitting(true)
     setSubmitStatus(null)
     setErrorMessage('')
-    
+
     try {
       // Verificar conectividade
       const isConnected = await checkConnectivity()
-      
+
       if (!isConnected) {
         throw new Error('Sem conexão com a internet')
       }
-      
+
       const webhookData = {
+        loja: storeId,
         funcionario: user,
         tipo_lista: listType === 'abertura' ? 'Abertura' : 'Fechamento',
         data: dayInfo.date,
@@ -517,9 +624,9 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
         total_tarefas: completedTasks.length,
         timestamp: new Date().toISOString()
       }
-      
+
       const result = await sendWebhook(webhookData)
-      
+
       if (result.success) {
         setSubmitStatus('success')
         // Aguardar um pouco para mostrar o sucesso antes de continuar
@@ -537,15 +644,14 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
       setIsSubmitting(false)
     }
   }
-  
+
   return (
     <div className="checklist-container fade-in">
       <Card className="checklist-card">
         <CardHeader className="text-center space-y-4">
-          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto bounce-in ${
-            submitStatus === 'success' ? 'bg-green-100' : 
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto bounce-in ${submitStatus === 'success' ? 'bg-green-100' :
             submitStatus === 'error' ? 'bg-red-100' : 'bg-green-100'
-          }`}>
+            }`}>
             {submitStatus === 'success' ? (
               <CheckCircle className="w-10 h-10 text-green-600" />
             ) : submitStatus === 'error' ? (
@@ -554,19 +660,18 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
               <CheckCircle className="w-10 h-10 text-green-600" />
             )}
           </div>
-          <CardTitle className={`text-2xl font-bold ${
-            submitStatus === 'error' ? 'text-red-700' : 'text-green-700'
-          }`}>
+          <CardTitle className={`text-2xl font-bold ${submitStatus === 'error' ? 'text-red-700' : 'text-green-700'
+            }`}>
             {submitStatus === 'success' ? '🎉 Enviado com Sucesso!' :
-             submitStatus === 'error' ? '❌ Erro no Envio' :
-             '✅ Checklist Concluído!'}
+              submitStatus === 'error' ? '❌ Erro no Envio' :
+                '✅ Checklist Concluído!'}
           </CardTitle>
           <div className="space-y-2">
             <p className="text-gray-600 text-lg font-medium">
-              {user} • {listType === 'abertura' ? 'Abertura' : 'Fechamento'}
+              Loja {storeId} • {user}
             </p>
             <p className="text-gray-500">
-              {dayInfo.dayOfWeek} • {dayInfo.date} • {dayInfo.time}
+              {listType === 'abertura' ? 'Abertura' : 'Fechamento'} • {dayInfo.dayOfWeek}
             </p>
             <div className={`status-indicator ${isOnline ? 'status-online' : 'status-offline'}`}>
               {isOnline ? (
@@ -584,26 +689,26 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
               <p className="text-red-700">{errorMessage}</p>
             </div>
           )}
-          
+
           {submitStatus === 'success' && (
             <div className="success-card slide-up">
               <p className="text-green-800 font-bold mb-1">✅ Sucesso!</p>
-              <p className="text-green-700">Checklist enviado e registrado no sistema.</p>
+              <p className="text-green-700">Checklist enviado.</p>
             </div>
           )}
-          
+
           <div className="success-card">
             <h3 className="font-bold text-green-800 mb-3 text-lg">📋 Tarefas Realizadas:</h3>
             <ul className="space-y-2">
               {completedTasks.map((task, index) => (
                 <li key={index} className="text-green-700 flex items-center gap-3">
                   <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                  <span className="font-medium">{task}</span>
+                  <span className="font-medium">{task.text || task}</span>
                 </li>
               ))}
             </ul>
           </div>
-          
+
           <div>
             <label className="block text-lg font-bold mb-3 text-gray-800">
               💬 Comentários (opcional)
@@ -611,13 +716,13 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
             <textarea
               value={comments}
               onChange={(e) => setComments(e.target.value)}
-              className="w-full p-4 border-2 border-gray-300 rounded-xl resize-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all duration-300"
+              className="w-full p-4 border-2 border-gray-300 rounded-xl resize-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition-all duration-300 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
               rows="4"
-              placeholder="Adicione observações ou comentários sobre as tarefas realizadas..."
+              placeholder="Adicione observações ou comentários..."
               disabled={isSubmitting || submitStatus === 'success'}
             />
           </div>
-          
+
           <div className="space-y-3">
             {submitStatus !== 'success' && (
               <button
@@ -638,7 +743,7 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
                 )}
               </button>
             )}
-            
+
             <button
               onClick={onBack}
               className="secondary-button"
@@ -655,39 +760,128 @@ function CompletionView({ user, listType, completedTasks, onSubmit, onBack }) {
 
 // Componente Principal da Aplicação
 function App() {
-  const [currentView, setCurrentView] = useState('userSelection')
+  const [currentView, setCurrentView] = useState('storeSelection') // Inicializa com seleção de loja
+  const [currentStore, setCurrentStore] = useState('')
   const [selectedUser, setSelectedUser] = useState('')
   const [selectedList, setSelectedList] = useState('')
   const [completedTasks, setCompletedTasks] = useState([])
-  
+
+  // Estado para dados configuráveis  
+  const [users, setUsers] = useState(() => loadConfig(STORAGE_KEY_USERS, DEFAULT_USERS))
+  const [tasksConfig, setTasksConfig] = useState(() => loadConfig(STORAGE_KEY_TASKS, DEFAULT_TASKS))
+
+  // Funções de Gerenciamento de Dados
+  const handleAddUser = (userName, selectedStores = ['248', '26']) => {
+    const newUsers = [...users, { name: userName, stores: selectedStores }]
+    setUsers(newUsers)
+    saveConfig(STORAGE_KEY_USERS, newUsers)
+  }
+
+  const handleRemoveUser = (userName) => {
+    const newUsers = users.filter(u => u.name !== userName)
+    setUsers(newUsers)
+    saveConfig(STORAGE_KEY_USERS, newUsers)
+  }
+
+  const handleUpdateUserStores = (userName, stores) => {
+    const newUsers = users.map(u =>
+      u.name === userName ? { ...u, stores } : u
+    )
+    setUsers(newUsers)
+    saveConfig(STORAGE_KEY_USERS, newUsers)
+  }
+
+  const handleAddTask = (listType, day, taskDescription) => {
+    const newConfig = { ...tasksConfig }
+
+    if (!newConfig[listType]) newConfig[listType] = {}
+    if (!newConfig[listType][day]) newConfig[listType][day] = []
+
+    const newTask = {
+      text: typeof taskDescription === 'string' ? taskDescription : taskDescription.text,
+      link: typeof taskDescription === 'string' ? '' : (taskDescription.link || ''),
+      stores: ['248', '26'] // Por padrão ativo em ambas
+    }
+
+    newConfig[listType][day] = [...newConfig[listType][day], newTask]
+    setTasksConfig(newConfig)
+    saveConfig(STORAGE_KEY_TASKS, newConfig)
+  }
+
+  const handleRemoveTask = (listType, day, taskIndex) => {
+    const newConfig = { ...tasksConfig }
+
+    if (newConfig[listType] && newConfig[listType][day]) {
+      newConfig[listType][day] = newConfig[listType][day].filter((_, i) => i !== taskIndex)
+      setTasksConfig(newConfig)
+      saveConfig(STORAGE_KEY_TASKS, newConfig)
+    }
+  }
+
+  const handleUpdateTasks = (listType, day, newTasks) => {
+    const newConfig = { ...tasksConfig }
+
+    if (!newConfig[listType]) newConfig[listType] = {}
+    newConfig[listType][day] = newTasks
+
+    setTasksConfig(newConfig)
+    saveConfig(STORAGE_KEY_TASKS, newConfig)
+  }
+
+  const handleUpdateTaskStores = (listType, day, taskIndex, stores) => {
+    const newConfig = { ...tasksConfig }
+
+    if (newConfig[listType] && newConfig[listType][day] && newConfig[listType][day][taskIndex]) {
+      newConfig[listType][day][taskIndex] = {
+        ...newConfig[listType][day][taskIndex],
+        stores
+      }
+      setTasksConfig(newConfig)
+      saveConfig(STORAGE_KEY_TASKS, newConfig)
+    }
+  }
+
+  const handleStoreSelect = (storeId) => {
+    setCurrentStore(storeId)
+    setCurrentView('userSelection')
+  }
+
   const handleUserSelect = (user) => {
     setSelectedUser(user)
     setCurrentView('listSelection')
   }
-  
+
   const handleListSelect = (listType) => {
     setSelectedList(listType)
     setCurrentView('checklist')
   }
-  
+
   const handleChecklistComplete = (tasks) => {
     setCompletedTasks(tasks)
     setCurrentView('completion')
   }
-  
+
   const handleSubmit = async (comments) => {
-    // Limpar progresso salvo após envio bem-sucedido
     clearProgress()
-    
-    // Resetar aplicação
+    // Retorna para seleção de usuário da mesma loja
     setCurrentView('userSelection')
     setSelectedUser('')
     setSelectedList('')
     setCompletedTasks([])
   }
-  
+
   const goBack = () => {
     switch (currentView) {
+      case 'userSelection':
+        setCurrentView('storeSelection')
+        setCurrentStore('')
+        break
+      case 'adminLogin':
+        setCurrentView('storeSelection') // Volta para seleção de loja
+        break
+      case 'adminDashboard':
+        setCurrentView('storeSelection') // Volta para seleção de loja
+        break
       case 'listSelection':
         setCurrentView('userSelection')
         setSelectedUser('')
@@ -702,12 +896,48 @@ function App() {
         break
     }
   }
-  
+
   return (
     <div className="App">
-      {currentView === 'userSelection' && (
-        <UserSelection onUserSelect={handleUserSelect} />
+      {currentView === 'storeSelection' && (
+        <StoreSelection
+          onStoreSelect={handleStoreSelect}
+          onAdminClick={() => setCurrentView('adminLogin')}
+        />
       )}
+
+      {currentView === 'userSelection' && (
+        <UserSelection
+          storeId={currentStore}
+          users={users.filter(u => u.stores.includes(currentStore)).map(u => u.name)}
+          onUserSelect={handleUserSelect}
+          onAdminClick={() => setCurrentView('adminLogin')}
+          onBack={goBack}
+        />
+      )}
+
+      {currentView === 'adminLogin' && (
+        <AdminLogin
+          onLogin={() => setCurrentView('adminDashboard')}
+          onBack={goBack}
+        />
+      )}
+
+      {currentView === 'adminDashboard' && (
+        <AdminDashboard
+          users={users}
+          tasksConfig={tasksConfig}
+          onAddUser={handleAddUser}
+          onRemoveUser={handleRemoveUser}
+          onUpdateUserStores={handleUpdateUserStores}
+          onAddTask={handleAddTask}
+          onRemoveTask={handleRemoveTask}
+          onUpdateTasks={handleUpdateTasks}
+          onUpdateTaskStores={handleUpdateTaskStores}
+          onBack={goBack}
+        />
+      )}
+
       {currentView === 'listSelection' && (
         <ListSelection
           user={selectedUser}
@@ -718,7 +948,9 @@ function App() {
       {currentView === 'checklist' && (
         <ChecklistView
           user={selectedUser}
+          storeId={currentStore}
           listType={selectedList}
+          tasksConfig={tasksConfig}
           onComplete={handleChecklistComplete}
           onBack={goBack}
         />
@@ -726,6 +958,7 @@ function App() {
       {currentView === 'completion' && (
         <CompletionView
           user={selectedUser}
+          storeId={currentStore}
           listType={selectedList}
           completedTasks={completedTasks}
           onSubmit={handleSubmit}
@@ -737,4 +970,3 @@ function App() {
 }
 
 export default App
-
