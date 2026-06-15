@@ -135,7 +135,7 @@ export default function PrintPage() {
         .tasks-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 0 24px;
+          gap: 0 32px;
         }
 
         .task-col {
@@ -147,8 +147,8 @@ export default function PrintPage() {
         .task-row {
           display: flex;
           align-items: center;
-          gap: 5px;
-          padding: 4px 0;
+          gap: 6px;
+          padding: 6px 0;
           border-bottom: 1px dashed #ddd;
         }
         .task-row:last-child {
@@ -156,25 +156,24 @@ export default function PrintPage() {
         }
 
         .task-num {
-          font-size: 9px;
+          font-size: 10px;
           color: #A88560;
-          width: 18px;
+          width: 20px;
           text-align: right;
           flex-shrink: 0;
           line-height: 1;
-          padding-top: 1px;
         }
 
         .task-checkbox {
-          width: 14px;
-          height: 14px;
+          width: 15px;
+          height: 15px;
           border: 1.5px solid #888;
           border-radius: 2px;
           flex-shrink: 0;
         }
 
         .task-text {
-          font-size: 11px;
+          font-size: 12px;
           color: #1a1a1a;
           line-height: 1.3;
           flex: 1;
