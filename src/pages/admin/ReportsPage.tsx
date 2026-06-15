@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown, X, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { formatDateBR, cn } from '@/lib/utils'
 import Stage, { SectionHead } from '@/components/layout/Stage'
@@ -77,6 +77,15 @@ export default function ReportsPage() {
       .order('id')
     setExpandedItems(data ?? [])
     setLoadingItems(false)
+  }
+
+  async function deleteSubmission(id: string) {
+    if (!confirm('Apagar essa submissão permanentemente?')) return
+    const { error } = await supabase.from('chk_submissions').delete().eq('id', id)
+    if (!error) {
+      setSubmissions(prev => prev.filter(s => s.id !== id))
+      if (expandedId === id) setExpandedId(null)
+    }
   }
 
   function clearFilters() {
@@ -189,40 +198,50 @@ export default function ReportsPage() {
                 const isExpanded = expandedId === sub.id
                 return (
                   <div key={sub.id} className="border-b border-rule-soft last:border-0">
-                    <button
-                      onClick={() => expandSubmission(sub.id)}
-                      className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-bg-hover transition-colors rounded-md px-1 -mx-1"
-                    >
-                      {/* Completion indicator */}
-                      <span className={cn(
-                        'w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5',
-                        isComplete ? 'bg-ink-muted' : 'bg-brand-rosa'
-                      )} />
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => expandSubmission(sub.id)}
+                        className="flex-1 flex items-center gap-3 py-2.5 text-left hover:bg-bg-hover transition-colors rounded-md px-1 -mx-1 min-w-0"
+                      >
+                        {/* Completion indicator */}
+                        <span className={cn(
+                          'w-1.5 h-1.5 rounded-full flex-shrink-0 mt-0.5',
+                          isComplete ? 'bg-ink-muted' : 'bg-brand-rosa'
+                        )} />
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-ink">{sub.list_name}</span>
-                          <span className="text-xs text-ink-muted">
-                            Loja {sub.store_name} · {sub.employee_name}
-                          </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-ink">{sub.list_name}</span>
+                            <span className="text-xs text-ink-muted">
+                              Loja {sub.store_name} · {sub.employee_name}
+                            </span>
+                          </div>
+                          <div className="text-xs text-ink-muted">
+                            {formatDateBR(sub.submitted_at)}
+                          </div>
                         </div>
-                        <div className="text-xs text-ink-muted">
-                          {formatDateBR(sub.submitted_at)}
-                        </div>
-                      </div>
 
-                      <span className={cn(
-                        'text-xs font-medium flex-shrink-0',
-                        isComplete ? 'text-ink-muted' : 'text-brand-rosa'
-                      )}>
-                        {sub.done_count}/{sub.total_count}
-                      </span>
+                        <span className={cn(
+                          'text-xs font-medium flex-shrink-0',
+                          isComplete ? 'text-ink-muted' : 'text-brand-rosa'
+                        )}>
+                          {sub.done_count}/{sub.total_count}
+                        </span>
 
-                      <ChevronDown className={cn(
-                        'w-4 h-4 text-ink-muted flex-shrink-0 transition-transform',
-                        isExpanded && 'rotate-180'
-                      )} />
-                    </button>
+                        <ChevronDown className={cn(
+                          'w-4 h-4 text-ink-muted flex-shrink-0 transition-transform',
+                          isExpanded && 'rotate-180'
+                        )} />
+                      </button>
+
+                      <button
+                        onClick={() => deleteSubmission(sub.id)}
+                        className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-bg-soft transition-colors flex-shrink-0"
+                        title="Apagar submissão"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
                     {/* Expanded detail — só pendentes + observação */}
                     {isExpanded && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getCurrentDayInfo } from '@/lib/utils'
 import type { Store, ChkEmployee, ChkList, TaskWithCheck } from '@/lib/types'
@@ -7,8 +7,10 @@ import EmployeeStep from '@/components/fill/EmployeeStep'
 import ListStep from '@/components/fill/ListStep'
 import FillStep from '@/components/fill/FillStep'
 import DoneStep from '@/components/fill/DoneStep'
+import Topbar from '@/components/layout/Topbar'
+import Stage from '@/components/layout/Stage'
 
-type Step = 'store' | 'employee' | 'list' | 'fill' | 'done'
+type Step = 'store' | 'employee' | 'list' | 'resume' | 'fill' | 'done'
 
 export default function ChecklistPage() {
   const [step, setStep] = useState<Step>('store')
@@ -24,6 +26,16 @@ export default function ChecklistPage() {
   const [lists, setLists] = useState<ChkList[]>([])
   const [tasks, setTasks] = useState<TaskWithCheck[]>([])
   const [whatsappNumber, setWhatsappNumber] = useState('5511999999999')
+
+  // Draft / resume
+  const draftIdRef = useRef<string | null>(null)
+  const pendingResumeRef = useRef<string[] | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [resumeInfo, setResumeInfo] = useState<{
+    employeeName: string
+    startedAt: string
+    checkedIds: string[]
+  } | null>(null)
 
   // UI state
   const [loadingStores, setLoadingStores] = useState(true)
@@ -44,7 +56,6 @@ export default function ChecklistPage() {
     }
     fetchStores()
 
-    // Load WhatsApp number
     supabase.from('chk_settings').select('value').eq('key', 'whatsapp_number').single().then(({ data }) => {
       if (data) setWhatsappNumber(data.value)
     })
@@ -89,7 +100,6 @@ export default function ChecklistPage() {
 
     const { dayOfWeek } = getCurrentDayInfo()
 
-    // First try to load day-specific tasks
     supabase
       .from('chk_tasks')
       .select('*')
@@ -98,10 +108,10 @@ export default function ChecklistPage() {
       .eq('active', true)
       .order('sort_order')
       .then(async ({ data: dayTasks }) => {
+        let loaded: TaskWithCheck[]
         if (dayTasks && dayTasks.length > 0) {
-          setTasks(dayTasks.map(t => ({ ...t, checked: false })))
+          loaded = dayTasks.map(t => ({ ...t, checked: false }))
         } else {
-          // Fall back to default (no day_of_week)
           const { data: defaultTasks } = await supabase
             .from('chk_tasks')
             .select('*')
@@ -109,11 +119,99 @@ export default function ChecklistPage() {
             .is('day_of_week', null)
             .eq('active', true)
             .order('sort_order')
-          setTasks((defaultTasks ?? []).map(t => ({ ...t, checked: false })))
+          loaded = (defaultTasks ?? []).map(t => ({ ...t, checked: false }))
         }
+
+        // Apply pending resume if user already confirmed before tasks loaded
+        const pending = pendingResumeRef.current
+        if (pending) {
+          loaded = loaded.map(t => ({ ...t, checked: pending.includes(t.id) }))
+          pendingResumeRef.current = null
+        }
+
+        setTasks(loaded)
         setLoadingTasks(false)
       })
   }, [list])
+
+  // Save draft (debounced) whenever tasks change during fill
+  const saveDraft = useCallback(async (checkedIds: string[]) => {
+    if (!list || !store || !employee) return
+    try {
+      if (draftIdRef.current) {
+        await supabase
+          .from('chk_drafts')
+          .update({ checked_ids: checkedIds, employee_name: employee.name })
+          .eq('id', draftIdRef.current)
+      } else {
+        const { data } = await supabase
+          .from('chk_drafts')
+          .upsert(
+            { store_id: store.id, list_id: list.id, employee_name: employee.name, checked_ids: checkedIds },
+            { onConflict: 'list_id,store_id' }
+          )
+          .select('id')
+          .single()
+        if (data) draftIdRef.current = data.id
+      }
+    } catch { /* silent — draft is not critical */ }
+  }, [list, store, employee])
+
+  useEffect(() => {
+    if (step !== 'fill' || tasks.length === 0) return
+    const ids = tasks.filter(t => t.checked).map(t => t.id)
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => saveDraft(ids), 600)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [tasks, step, saveDraft])
+
+  // Handle list selection — check for existing draft first
+  async function handleListSelect(l: ChkList) {
+    setList(l)
+    try {
+      const { data } = await supabase
+        .from('chk_drafts')
+        .select('*')
+        .eq('list_id', l.id)
+        .eq('store_id', store!.id)
+        .maybeSingle()
+
+      if (data && data.checked_ids?.length > 0) {
+        draftIdRef.current = data.id
+        setResumeInfo({
+          employeeName: data.employee_name,
+          startedAt: data.started_at,
+          checkedIds: data.checked_ids,
+        })
+        setStep('resume')
+        return
+      }
+    } catch { /* proceed normally if draft check fails */ }
+    setStep('fill')
+  }
+
+  function continueFromDraft() {
+    if (resumeInfo) {
+      const ids = resumeInfo.checkedIds
+      if (tasks.length > 0) {
+        setTasks(prev => prev.map(t => ({ ...t, checked: ids.includes(t.id) })))
+      } else {
+        // Tasks still loading — will be applied when they arrive
+        pendingResumeRef.current = ids
+      }
+    }
+    setResumeInfo(null)
+    setStep('fill')
+  }
+
+  async function startFresh() {
+    if (draftIdRef.current) {
+      supabase.from('chk_drafts').delete().eq('id', draftIdRef.current)
+      draftIdRef.current = null
+    }
+    setResumeInfo(null)
+    setStep('fill')
+  }
 
   const handleToggle = useCallback((taskId: string) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, checked: !t.checked } : t))
@@ -157,6 +255,12 @@ export default function ChecklistPage() {
         }))
       )
 
+      // Delete draft on successful submit
+      if (draftIdRef.current) {
+        supabase.from('chk_drafts').delete().eq('id', draftIdRef.current)
+        draftIdRef.current = null
+      }
+
       setStep('done')
     } catch (err) {
       console.error('Erro ao enviar checklist:', err)
@@ -167,6 +271,9 @@ export default function ChecklistPage() {
   }
 
   function reset() {
+    draftIdRef.current = null
+    pendingResumeRef.current = null
+    setResumeInfo(null)
     setStep('store')
     setStore(null)
     setEmployee(null)
@@ -174,6 +281,8 @@ export default function ChecklistPage() {
     setTasks([])
     setComment('')
   }
+
+  // ── Steps ──────────────────────────────────────────────────────────────────
 
   if (step === 'store') {
     return (
@@ -204,9 +313,53 @@ export default function ChecklistPage() {
         employee={employee}
         lists={lists}
         loading={loadingLists}
-        onSelect={l => { setList(l); setStep('fill') }}
+        onSelect={handleListSelect}
         onBack={() => setStep('employee')}
       />
+    )
+  }
+
+  if (step === 'resume' && store && employee && list && resumeInfo) {
+    const time = new Date(resumeInfo.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const count = resumeInfo.checkedIds.length
+
+    return (
+      <div className="flex flex-col h-full">
+        <Topbar
+          breadcrumbs={[
+            { label: `Loja ${store.name}`, onClick: () => setStep('store') },
+            { label: employee.name, onClick: () => setStep('employee') },
+            { label: list.name, onClick: () => setStep('list') },
+          ]}
+        />
+        <Stage>
+          <div className="py-6">
+            <p className="text-[0.74rem] font-semibold uppercase tracking-widest text-ink-soft mb-5">
+              Lista em andamento
+            </p>
+            <p className="text-base text-ink mb-1">
+              <span className="font-medium">{resumeInfo.employeeName}</span> começou essa lista às {time} e não terminou.
+            </p>
+            <p className="text-sm text-ink-muted mb-8">
+              {count} {count === 1 ? 'item marcado' : 'itens marcados'} até agora.
+            </p>
+            <div className="flex flex-col gap-3 max-w-xs">
+              <button
+                onClick={continueFromDraft}
+                className="h-12 rounded-lg bg-ink text-bg text-sm font-medium hover:bg-ink-soft transition-colors"
+              >
+                Continuar de onde parou
+              </button>
+              <button
+                onClick={startFresh}
+                className="h-12 rounded-lg border border-rule-soft text-ink-soft text-sm hover:bg-bg-soft transition-colors"
+              >
+                Começar do zero
+              </button>
+            </div>
+          </div>
+        </Stage>
+      </div>
     )
   }
 
