@@ -1,0 +1,257 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode via data-theme attribute */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ============================================================
+   Santo Favo — CSS variables (light theme default)
+   ============================================================ */
+:root {
+  /* Santo Favo semantic tokens */
+  --bg:        #F8F1E0;
+  --bg-soft:   #F2E9D2;
+  --bg-card:   #FBF6E9;
+  --bg-hover:  rgba(114, 56, 28, 0.06);
+  --ink:       #72381C;
+  --ink-soft:  #8C4820;
+  --ink-muted: #A88560;
+  --rule:      rgba(114, 56, 28, 0.5);
+  --rule-soft: rgba(114, 56, 28, 0.15);
+  --dot:       #B0905F;
+  --sf-accent: #FFCC1C;
+
+  /* shadcn/ui tokens — mapped to Santo Favo palette */
+  --radius: 4px;
+  --background: #F8F1E0;
+  --foreground: #72381C;
+  --card: #FBF6E9;
+  --card-foreground: #72381C;
+  --popover: #FBF6E9;
+  --popover-foreground: #72381C;
+  --primary: #72381C;
+  --primary-foreground: #F8F1E0;
+  --secondary: #F2E9D2;
+  --secondary-foreground: #72381C;
+  --muted: #F2E9D2;
+  --muted-foreground: #A88560;
+  --accent: #F2E9D2;
+  --accent-foreground: #72381C;
+  --destructive: #FF4D79;
+  --border: rgba(114, 56, 28, 0.15);
+  --input: rgba(114, 56, 28, 0.15);
+  --ring: rgba(114, 56, 28, 0.4);
+  --chart-1: #8C4820;
+  --chart-2: #B0905F;
+  --chart-3: #A88560;
+  --chart-4: #FFCC1C;
+  --chart-5: #96CC70;
+  --sidebar: #F2E9D2;
+  --sidebar-foreground: #72381C;
+  --sidebar-primary: #72381C;
+  --sidebar-primary-foreground: #F8F1E0;
+  --sidebar-accent: #F8F1E0;
+  --sidebar-accent-foreground: #72381C;
+  --sidebar-border: rgba(114, 56, 28, 0.15);
+  --sidebar-ring: rgba(114, 56, 28, 0.4);
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --bg:        #1A130B;
+  --bg-soft:   #221A10;
+  --bg-card:   #251C12;
+  --bg-hover:  rgba(242, 226, 194, 0.06);
+  --ink:       #F2E2C2;
+  --ink-soft:  #D8BE91;
+  --ink-muted: #8A745B;
+  --rule:      rgba(216, 190, 145, 0.4);
+  --rule-soft: rgba(216, 190, 145, 0.15);
+  --dot:       #6B4D2A;
+  --sf-accent: #FFCC1C;
+
+  --background: #1A130B;
+  --foreground: #F2E2C2;
+  --card: #251C12;
+  --card-foreground: #F2E2C2;
+  --popover: #251C12;
+  --popover-foreground: #F2E2C2;
+  --primary: #F2E2C2;
+  --primary-foreground: #1A130B;
+  --secondary: #221A10;
+  --secondary-foreground: #F2E2C2;
+  --muted: #221A10;
+  --muted-foreground: #8A745B;
+  --accent: #221A10;
+  --accent-foreground: #F2E2C2;
+  --destructive: #FF4D79;
+  --border: rgba(216, 190, 145, 0.15);
+  --input: rgba(216, 190, 145, 0.15);
+  --ring: rgba(216, 190, 145, 0.4);
+  --sidebar: #221A10;
+  --sidebar-foreground: #F2E2C2;
+  --sidebar-primary: #F2E2C2;
+  --sidebar-primary-foreground: #1A130B;
+  --sidebar-accent: #1A130B;
+  --sidebar-accent-foreground: #F2E2C2;
+  --sidebar-border: rgba(216, 190, 145, 0.15);
+  --sidebar-ring: rgba(216, 190, 145, 0.4);
+}
+
+/* ============================================================
+   Tailwind v4 theme — maps CSS vars to utility classes
+   ============================================================ */
+@theme inline {
+  /* shadcn/ui bridge */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background:             var(--background);
+  --color-foreground:             var(--foreground);
+  --color-card:                   var(--card);
+  --color-card-foreground:        var(--card-foreground);
+  --color-popover:                var(--popover);
+  --color-popover-foreground:     var(--popover-foreground);
+  --color-primary:                var(--primary);
+  --color-primary-foreground:     var(--primary-foreground);
+  --color-secondary:              var(--secondary);
+  --color-secondary-foreground:   var(--secondary-foreground);
+  --color-muted:                  var(--muted);
+  --color-muted-foreground:       var(--muted-foreground);
+  --color-accent:                 var(--accent);
+  --color-accent-foreground:      var(--accent-foreground);
+  --color-destructive:            var(--destructive);
+  --color-border:                 var(--border);
+  --color-input:                  var(--input);
+  --color-ring:                   var(--ring);
+  --color-chart-1:                var(--chart-1);
+  --color-chart-2:                var(--chart-2);
+  --color-chart-3:                var(--chart-3);
+  --color-chart-4:                var(--chart-4);
+  --color-chart-5:                var(--chart-5);
+  --color-sidebar:                var(--sidebar);
+  --color-sidebar-foreground:     var(--sidebar-foreground);
+  --color-sidebar-primary:        var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:         var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border:         var(--sidebar-border);
+  --color-sidebar-ring:           var(--sidebar-ring);
+
+  /* Santo Favo custom utilities */
+  --color-bg:        var(--bg);
+  --color-bg-soft:   var(--bg-soft);
+  --color-bg-card:   var(--bg-card);
+  --color-bg-hover:  var(--bg-hover);
+  --color-ink:       var(--ink);
+  --color-ink-soft:  var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule:      var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-dot:       var(--dot);
+  --color-sf-accent: var(--sf-accent);
+
+  /* Brand colors (static) */
+  --color-brand-yellow:        #FFCC1C;
+  --color-brand-marrom-escuro: #72381C;
+  --color-brand-marrom:        #8C4820;
+  --color-brand-rosa:          #FF4D79;
+  --color-brand-verde:         #96CC70;
+  --color-brand-roxo:          #A890CC;
+
+  /* Fonts */
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-sans:  "DM Sans", system-ui, -apple-system, sans-serif;
+
+  /* Font sizes */
+  --text-xs:   0.7rem;
+  --text-sm:   0.82rem;
+  --text-base: 0.98rem;
+  --text-md:   1.05rem;
+  --text-lg:   1.2rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2.1rem;
+
+  /* Letter spacing */
+  --tracking-wider:  0.1em;
+  --tracking-widest: 0.18em;
+  --tracking-ultra:  0.22em;
+
+  /* Border radius */
+  --radius-pill: 100px;
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: var(--ring);
+  }
+
+  html {
+    font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+    font-size: 0.98rem;
+    line-height: 1.55;
+  }
+
+  h1, h2 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  h3, h4, h5, h6 {
+    font-family: "DM Sans", system-ui, -apple-system, sans-serif;
+    font-weight: 600;
+  }
+
+  /* Focus visible */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+/* ============================================================
+   Print styles
+   ============================================================ */
+@media print {
+  .no-print { display: none !important; }
+
+  body {
+    background: white !important;
+    color: #1a1a1a !important;
+  }
+
+  :root {
+    --bg: white;
+    --bg-card: white;
+    --bg-soft: #f5f5f5;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-muted: #7a7a7a;
+    --rule: #999;
+    --rule-soft: #ddd;
+    --dot: #999;
+  }
+
+  .print-page {
+    padding: 1.5rem;
+    max-width: 100%;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid;
+  }
+}
