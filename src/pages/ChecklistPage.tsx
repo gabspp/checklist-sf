@@ -131,9 +131,12 @@ export default function ChecklistPage() {
     const totalCount = tasks.length
 
     try {
-      const { data: submission, error } = await supabase
+      const submissionId = crypto.randomUUID()
+
+      const { error } = await supabase
         .from('chk_submissions')
         .insert({
+          id: submissionId,
           store_id: store.id,
           list_id: list.id,
           list_name: list.name,
@@ -143,20 +146,16 @@ export default function ChecklistPage() {
           total_count: totalCount,
           done_count: doneCount,
         })
-        .select('id')
-        .single()
 
       if (error) throw error
 
-      if (submission) {
-        await supabase.from('chk_submission_items').insert(
-          tasks.map(t => ({
-            submission_id: submission.id,
-            text: t.text,
-            done: t.checked,
-          }))
-        )
-      }
+      await supabase.from('chk_submission_items').insert(
+        tasks.map(t => ({
+          submission_id: submissionId,
+          text: t.text,
+          done: t.checked,
+        }))
+      )
 
       setStep('done')
     } catch (err) {
