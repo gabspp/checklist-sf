@@ -21,6 +21,7 @@ export default function PrintPage() {
         const { data: storeData } = await supabase.from('stores').select('id, name').eq('id', listData.store_id).single()
         setStore(storeData)
       }
+      // Impressão usa só as tarefas de toda semana (sem dia específico — é um template genérico)
       setTasks(tasksData ?? [])
       setLoading(false)
     })

@@ -93,45 +93,49 @@ export default function ChecklistPage() {
       })
   }, [store])
 
-  // Load tasks when list selected
+  // Load tasks when list selected — sempre carrega "toda semana" + tarefas do dia (aditivo)
   useEffect(() => {
     if (!list) return
     setLoadingTasks(true)
 
     const { dayOfWeek } = getCurrentDayInfo()
 
-    supabase
-      .from('chk_tasks')
-      .select('*')
-      .eq('list_id', list.id)
-      .eq('day_of_week', dayOfWeek)
-      .eq('active', true)
-      .order('sort_order')
-      .then(async ({ data: dayTasks }) => {
-        let loaded: TaskWithCheck[]
-        if (dayTasks && dayTasks.length > 0) {
-          loaded = dayTasks.map(t => ({ ...t, checked: false }))
-        } else {
-          const { data: defaultTasks } = await supabase
-            .from('chk_tasks')
-            .select('*')
-            .eq('list_id', list.id)
-            .is('day_of_week', null)
-            .eq('active', true)
-            .order('sort_order')
-          loaded = (defaultTasks ?? []).map(t => ({ ...t, checked: false }))
-        }
+    async function loadTasks() {
+      const [{ data: defaultTasks }, { data: dayTasks }] = await Promise.all([
+        supabase
+          .from('chk_tasks')
+          .select('*')
+          .eq('list_id', list!.id)
+          .is('day_of_week', null)
+          .eq('active', true)
+          .order('sort_order'),
+        supabase
+          .from('chk_tasks')
+          .select('*')
+          .eq('list_id', list!.id)
+          .eq('day_of_week', dayOfWeek)
+          .eq('active', true)
+          .order('sort_order'),
+      ])
 
-        // Apply pending resume if user already confirmed before tasks loaded
-        const pending = pendingResumeRef.current
-        if (pending) {
-          loaded = loaded.map(t => ({ ...t, checked: pending.includes(t.id) }))
-          pendingResumeRef.current = null
-        }
+      // Tarefas padrão primeiro, depois as específicas do dia
+      let loaded: TaskWithCheck[] = [
+        ...(defaultTasks ?? []),
+        ...(dayTasks ?? []),
+      ].map(t => ({ ...t, checked: false }))
 
-        setTasks(loaded)
-        setLoadingTasks(false)
-      })
+      // Apply pending resume if user already confirmed before tasks loaded
+      const pending = pendingResumeRef.current
+      if (pending) {
+        loaded = loaded.map(t => ({ ...t, checked: pending.includes(t.id) }))
+        pendingResumeRef.current = null
+      }
+
+      setTasks(loaded)
+      setLoadingTasks(false)
+    }
+
+    loadTasks()
   }, [list])
 
   // Save draft (debounced) whenever tasks change during fill
