@@ -5,9 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const DAY_NAMES_PT = [
+  'domingo',
+  'segunda-feira',
+  'terça-feira',
+  'quarta-feira',
+  'quinta-feira',
+  'sexta-feira',
+  'sábado',
+]
+
 export function getCurrentDayInfo() {
   const now = new Date()
-  const dayOfWeek = now.toLocaleDateString('pt-BR', { weekday: 'long' }).toLowerCase()
+  const dayOfWeek = DAY_NAMES_PT[now.getDay()]
   const date = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const time = now.toTimeString().substring(0, 5)
   return { dayOfWeek, date, time, raw: now }
