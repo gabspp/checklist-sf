@@ -124,9 +124,14 @@ export default function DoneStep({
           )}
 
           {/* Actions */}
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="p-3 bg-bg-card border border-rule-soft rounded-lg text-center flex flex-col items-center justify-center gap-1">
+               <span className="text-sm font-medium text-ink">Finalizado com sucesso</span>
+               <span className="text-xs text-ink-muted">A notificação automática foi disparada.</span>
+            </div>
+
             <button
-              onClick={handleWhatsApp}
+              onClick={onNewChecklist}
               className="
                 w-full h-12 rounded-pill
                 flex items-center justify-center gap-2
@@ -136,39 +141,39 @@ export default function DoneStep({
                 focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2
               "
             >
-              <MessageCircle className="w-4 h-4" />
-              Enviar no WhatsApp
-            </button>
-
-            <button
-              onClick={handleCopy}
-              className="
-                w-full h-12 rounded-pill
-                flex items-center justify-center gap-2
-                border border-ink text-ink
-                text-sm font-medium uppercase tracking-wider
-                hover:bg-bg-hover transition-colors
-                focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2
-              "
-            >
-              <Copy className="w-4 h-4" />
-              {copied ? 'Copiado!' : 'Copiar texto'}
-            </button>
-
-            <button
-              onClick={onNewChecklist}
-              className="
-                w-full h-10
-                flex items-center justify-center gap-2
-                text-ink-muted
-                text-xs uppercase tracking-wider
-                hover:text-ink transition-colors
-                focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2 rounded-md
-              "
-            >
-              <ClipboardList className="w-3.5 h-3.5" />
+              <ClipboardList className="w-4 h-4" />
               Novo checklist
             </button>
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleWhatsApp}
+                className="
+                  flex-1 h-10 rounded-pill
+                  flex items-center justify-center gap-1.5
+                  border border-rule-soft text-ink-soft
+                  text-[10px] font-medium uppercase tracking-wider
+                  hover:bg-bg-hover transition-colors
+                "
+              >
+                <MessageCircle className="w-3 h-3" />
+                WhatsApp (Manual)
+              </button>
+
+              <button
+                onClick={handleCopy}
+                className="
+                  flex-1 h-10 rounded-pill
+                  flex items-center justify-center gap-1.5
+                  border border-rule-soft text-ink-soft
+                  text-[10px] font-medium uppercase tracking-wider
+                  hover:bg-bg-hover transition-colors
+                "
+              >
+                <Copy className="w-3 h-3" />
+                {copied ? 'Copiado!' : 'Copiar texto'}
+              </button>
+            </div>
           </div>
         </div>
       </div>

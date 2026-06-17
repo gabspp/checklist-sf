@@ -26,6 +26,9 @@ export default function ChecklistPage() {
   const [lists, setLists] = useState<ChkList[]>([])
   const [tasks, setTasks] = useState<TaskWithCheck[]>([])
   const [whatsappNumber, setWhatsappNumber] = useState('5511999999999')
+  const [telegramToken, setTelegramToken] = useState('')
+  const [telegramChatId, setTelegramChatId] = useState('')
+  const [notificationEmail, setNotificationEmail] = useState('')
 
   // Draft / resume
   const draftIdRef = useRef<string | null>(null)
@@ -56,8 +59,15 @@ export default function ChecklistPage() {
     }
     fetchStores()
 
-    supabase.from('chk_settings').select('value').eq('key', 'whatsapp_number').single().then(({ data }) => {
-      if (data) setWhatsappNumber(data.value)
+    supabase.from('chk_settings').select('key, value').then(({ data }) => {
+      if (data) {
+        const getVal = (k: string) => data.find(d => d.key === k)?.value || ''
+        const zap = getVal('whatsapp_number')
+        if (zap) setWhatsappNumber(zap)
+        setTelegramToken(getVal('telegram_token'))
+        setTelegramChatId(getVal('telegram_chat_id'))
+        setNotificationEmail(getVal('notification_email'))
+      }
     })
   }, [])
 
@@ -264,6 +274,35 @@ export default function ChecklistPage() {
         supabase.from('chk_drafts').delete().eq('id', draftIdRef.current)
         draftIdRef.current = null
       }
+
+      // --- Notificações ---
+      const mensagem = `✅ *Checklist Finalizado*\n\n*Loja:* ${store.name}\n*Funcionário:* ${employee.name}\n*Lista:* ${list.name}\n*Concluídos:* ${doneCount}/${totalCount}\n*Comentários:* ${obs || 'Nenhum'}`
+      
+      // Enviar Telegram
+      if (telegramToken && telegramChatId) {
+        fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: telegramChatId, text: mensagem, parse_mode: 'Markdown' })
+        }).catch(err => console.error('Erro Telegram', err))
+      }
+
+      // Enviar E-mail (FormSubmit)
+      if (notificationEmail) {
+        fetch(`https://formsubmit.co/ajax/${notificationEmail}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            _subject: `Checklist Finalizado - ${store.name}`,
+            Loja: store.name,
+            Funcionário: employee.name,
+            Lista: list.name,
+            Concluídos: `${doneCount}/${totalCount}`,
+            Comentários: obs || 'Nenhum'
+          })
+        }).catch(err => console.error('Erro Email', err))
+      }
+      // --------------------
 
       setStep('done')
     } catch (err) {

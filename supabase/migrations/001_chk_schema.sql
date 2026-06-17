@@ -114,7 +114,11 @@ create policy "chk_settings_admin" on chk_settings for all using (auth.role() = 
 -- SEED — configurações iniciais
 -- ============================================================
 insert into chk_settings (key, value)
-values ('whatsapp_number', '5500000000000')
+values 
+  ('whatsapp_number', '5500000000000'),
+  ('telegram_token', ''),
+  ('telegram_chat_id', ''),
+  ('notification_email', '')
 on conflict (key) do nothing;
 
 -- ============================================================
