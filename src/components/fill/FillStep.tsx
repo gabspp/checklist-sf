@@ -193,7 +193,7 @@ function TaskRow({ task, onToggle }: { task: TaskWithCheck; onToggle: () => void
       </span>
 
       {/* Leader dot + text */}
-      <span className="text-ink text-sm text-left shrink-0">{task.text}</span>
+      <span className="text-ink text-sm text-left whitespace-normal break-words">{task.text}</span>
       <span
         className="flex-1 min-w-[0.5rem] border-b-[1.5px] border-dotted border-dot -translate-y-1 opacity-55"
         aria-hidden
