@@ -182,30 +182,17 @@ begin
   select list_abertura_248, txt, ord from abertura_tasks;
 
   with abertura_tasks(txt, ord) as (values
-    ('organizar lixeiras', 0),
-    ('ligar máquina de café', 1),
-    ('encher galão d''água', 2),
-    ('abrir caixa', 3),
-    ('conferir bateria das máquinas de cartão', 4),
-    ('pegar perfex', 5),
-    ('conferir crocantes', 6),
-    ('conferir estoque itens takeat', 7),
-    ('montar vitrine de produtos', 8),
-    ('estoque coado P & G', 9),
-    ('pegar porta filtros', 10),
-    ('colocar café na cuba', 11),
-    ('montar caixas de barrinha', 12),
-    ('montar colmeia de pães de mel', 13),
-    ('tirar itens da geladeira', 14),
-    ('fazer café coado', 15),
-    ('montar caixinhas de presente', 16),
-    ('montar caixinha de 3 do balcão', 17),
-    ('repor água com e sem gás', 18),
-    ('encher reservas de água', 19),
-    ('verificar estoque ifood', 20),
-    ('repor açúcar', 21),
-    ('fazer etiquetas de validade', 22),
-    ('fazer papel do mês', 23)
+    ('Abrir o caixa', 0),
+    ('Conferir etiquetas de validade e atualizar validade dos produtos da vitrine', 1),
+    ('Ligar máquina de gelo, colocar água e tirar pá de dentro', 2),
+    ('Ligar a máquina de café, moedor e checar todos os itens', 3),
+    ('Ligar o som e ar condicionado', 4),
+    ('Passar duas garrafas de filtrado', 5),
+    ('Checar se todas as lixeiras tem saco, se o banheiro está com todos os insumos e repor se necessário', 6),
+    ('Verificar se temos todos os itens para o serviço incluindo os itens das mesas.', 7),
+    ('Conferir embalagens para viagem. Repor embalagens se necessário', 8),
+    ('Pedir os produtos em falta no site de pedidos.', 9),
+    ('Montar vitrine seguindo o mapa de produtos', 10)
   )
   insert into chk_tasks (list_id, text, sort_order)
   select list_abertura_26, txt, ord from abertura_tasks;
