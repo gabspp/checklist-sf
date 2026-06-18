@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import confetti from 'canvas-confetti'
 import { ChevronLeft, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ChkEmployee, ChkList, Store, TaskWithCheck } from '@/lib/types'
@@ -162,9 +163,27 @@ export default function FillStep({
 }
 
 function TaskRow({ task, onToggle }: { task: TaskWithCheck; onToggle: () => void }) {
+  const handleClick = (e: React.MouseEvent) => {
+    if (!task.checked) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const x = (e.clientX || rect.left + rect.width / 2) / window.innerWidth
+      const y = (e.clientY || rect.top + rect.height / 2) / window.innerHeight
+      
+      confetti({
+        particleCount: 25,
+        spread: 40,
+        origin: { x, y },
+        colors: ['#4ade80', '#22c55e', '#16a34a', '#fbbf24', '#f59e0b'],
+        disableForReducedMotion: true,
+        zIndex: 100
+      })
+    }
+    onToggle()
+  }
+
   return (
     <button
-      onClick={onToggle}
+      onClick={handleClick}
       className={cn(
         'w-full flex items-baseline gap-2 py-3 px-3',
         'rounded-lg border transition-colors min-h-[52px]',

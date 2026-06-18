@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import confetti from 'canvas-confetti'
 import { Check, MessageCircle, Copy, ClipboardList } from 'lucide-react'
 import { cn, getShareText, openWhatsApp, copyToClipboard } from '@/lib/utils'
 import type { ChkEmployee, ChkList, Store, TaskWithCheck } from '@/lib/types'
@@ -60,6 +61,15 @@ export default function DoneStep({
   }
 
   const allDone = doneCount === totalCount
+
+  useEffect(() => {
+    confetti({
+      particleCount: allDone ? 150 : 60,
+      spread: allDone ? 80 : 50,
+      origin: { y: 0.6 },
+      disableForReducedMotion: true
+    })
+  }, [allDone])
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
