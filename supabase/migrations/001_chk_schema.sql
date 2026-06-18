@@ -230,32 +230,17 @@ begin
   select list_fechamento_248, txt, ord from fechamento_tasks;
 
   with fechamento_tasks(txt, ord) as (values
-    ('guardar encomendas na geladeira', 0),
-    ('lavar porta filtros', 1),
-    ('limpar gaveta de borra de café', 2),
-    ('limpar bancada barista', 3),
-    ('conferir itens no carrinho', 4),
-    ('esvaziar cuba de café e moer descarte', 5),
-    ('virar placa', 6),
-    ('limpar garrafa térmica', 7),
-    ('deixar maquininhas carregando', 8),
-    ('limpar máquina de café', 9),
-    ('tirar lixo do café', 10),
-    ('atualizar encomendas de bolo no vidro', 11),
-    ('enviar foto estoque de pães de mel', 12),
-    ('cadastrar novos pedidos no NOTION', 13),
-    ('fechar caixa', 14),
-    ('contar pães de mel', 15),
-    ('finalizar comandas no takeat', 16),
-    ('guardar bolinho de mel', 17),
-    ('limpar grade máquina de café', 18),
-    ('desligar moinho de café', 19),
-    ('limpar gaveta bate borra', 20),
-    ('desligar máquina de café', 21),
-    ('desligar ar condicionado', 22),
-    ('desligar cortina de vento', 23),
-    ('tirar galão descarte', 24),
-    ('guardar produtos na geladeira', 25)
+    ('Iniciar processo de fechamento 18:30', 0),
+    ('Limpar a máquina de café e moedor 18:40', 1),
+    ('Desligar a máquina', 2),
+    ('Higienizar bancadas', 3),
+    ('Virar a placa p/ fechado 19:00', 4),
+    ('Recolher todos os itens da vitrine e lavar bandejas e pegadores', 5),
+    ('Repor embalagens se necessário', 6),
+    ('Sinalizar itens que precisa para o dia seguinte', 7),
+    ('Repor sacolas nas lixeiras', 8),
+    ('Deixar toda a área do balcão organizada para o serviço do dia seguinte.', 9),
+    ('Contar produtos e lançar no sistema', 10)
   )
   insert into chk_tasks (list_id, text, sort_order)
   select list_fechamento_26, txt, ord from fechamento_tasks;
