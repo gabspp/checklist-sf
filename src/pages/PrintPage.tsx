@@ -147,7 +147,7 @@ export default function PrintPage() {
         /* Task row */
         .task-row {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 6px;
           padding: 6px 0;
           border-bottom: 1px dashed #ddd;
@@ -162,7 +162,8 @@ export default function PrintPage() {
           width: 20px;
           text-align: right;
           flex-shrink: 0;
-          line-height: 1;
+          line-height: 1.4;
+          padding-top: 1px;
         }
 
         .task-checkbox {
@@ -171,6 +172,7 @@ export default function PrintPage() {
           border: 1.5px solid #888;
           border-radius: 2px;
           flex-shrink: 0;
+          margin-top: 1px;
         }
 
         .task-text {
@@ -178,10 +180,7 @@ export default function PrintPage() {
           color: #1a1a1a;
           line-height: 1.3;
           flex: 1;
-          min-width: 0;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          word-break: break-word;
         }
 
         /* Footer */
