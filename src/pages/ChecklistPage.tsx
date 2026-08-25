@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { getCurrentDayInfo } from '@/lib/utils'
+import { getCurrentDayInfo, generateId } from '@/lib/utils'
 import type { Store, ChkEmployee, ChkList, TaskWithCheck } from '@/lib/types'
 import StoreStep from '@/components/fill/StoreStep'
 import EmployeeStep from '@/components/fill/EmployeeStep'
+import TypeStep from '@/components/fill/TypeStep'
 import ListStep from '@/components/fill/ListStep'
 import FillStep from '@/components/fill/FillStep'
 import DoneStep from '@/components/fill/DoneStep'
 import Topbar from '@/components/layout/Topbar'
 import Stage from '@/components/layout/Stage'
+import FormFlow from '@/pages/FormFlow'
 
-type Step = 'store' | 'employee' | 'list' | 'resume' | 'fill' | 'done'
+type Step = 'store' | 'employee' | 'type' | 'list' | 'resume' | 'fill' | 'done' | 'form'
 
 export default function ChecklistPage() {
   const [step, setStep] = useState<Step>('store')
@@ -243,7 +245,7 @@ export default function ChecklistPage() {
     const totalCount = tasks.length
 
     try {
-      const submissionId = crypto.randomUUID()
+      const submissionId = generateId()
 
       const { error } = await supabase
         .from('chk_submissions')
@@ -343,8 +345,19 @@ export default function ChecklistPage() {
         store={store}
         employees={employees}
         loading={loadingEmployees}
-        onSelect={e => { setEmployee(e); setStep('list') }}
+        onSelect={e => { setEmployee(e); setStep('type') }}
         onBack={() => setStep('store')}
+      />
+    )
+  }
+
+  if (step === 'type' && store && employee) {
+    return (
+      <TypeStep
+        store={store}
+        employee={employee}
+        onSelect={type => setStep(type === 'checklist' ? 'list' : 'form')}
+        onBack={() => setStep('employee')}
       />
     )
   }
@@ -357,7 +370,22 @@ export default function ChecklistPage() {
         lists={lists}
         loading={loadingLists}
         onSelect={handleListSelect}
-        onBack={() => setStep('employee')}
+        onBack={() => setStep('type')}
+      />
+    )
+  }
+
+  if (step === 'form' && store && employee) {
+    return (
+      <FormFlow
+        store={store}
+        employee={employee}
+        whatsappNumber={whatsappNumber}
+        telegramToken={telegramToken}
+        telegramChatId={telegramChatId}
+        notificationEmail={notificationEmail}
+        onBack={() => setStep('type')}
+        onFinish={reset}
       />
     )
   }

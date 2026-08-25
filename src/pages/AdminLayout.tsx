@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom'
-import { Users, ClipboardList, BarChart2, Settings, LogOut, Store } from 'lucide-react'
+import { Users, ClipboardList, FileText, BarChart2, Settings, LogOut, Store } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/admin/reports', icon: BarChart2, label: 'Relatórios' },
   { to: '/admin/lists', icon: ClipboardList, label: 'Listas' },
+  { to: '/admin/forms', icon: FileText, label: 'Formulários' },
   { to: '/admin/employees', icon: Users, label: 'Colaboradores' },
   { to: '/admin/settings', icon: Settings, label: 'Configurações' },
 ]

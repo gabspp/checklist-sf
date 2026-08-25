@@ -66,6 +66,61 @@ export interface SubmissionWithItems extends ChkSubmission {
   store?: Store
 }
 
+// ── Formulários ──────────────────────────────────────────────────────────
+
+export interface FrmForm {
+  id: string
+  store_id: string
+  name: string
+  active: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface FrmSection {
+  id: string
+  form_id: string
+  name: string
+  active: boolean
+  sort_order: number
+}
+
+export interface FrmItem {
+  id: string
+  section_id: string
+  name: string
+  active: boolean
+  sort_order: number
+}
+
+export interface FrmSubmission {
+  id: string
+  store_id: string
+  form_id: string
+  form_name: string
+  employee_id: string | null
+  employee_name: string
+  comment: string | null
+  item_count: number
+  filled_count: number
+  submitted_at: string
+}
+
+export interface FrmSubmissionItem {
+  id: string
+  submission_id: string
+  section_name: string
+  item_name: string
+  quantity: number | null
+  comprar: boolean
+}
+
+// Tipo para o fill flow — item com estado de resposta
+export interface ItemWithValue extends FrmItem {
+  quantity: number | null
+  comprar: boolean
+}
+
 // Database type para o cliente Supabase tipado
 export type Database = {
   public: {
@@ -77,6 +132,11 @@ export type Database = {
       chk_submissions: { Row: ChkSubmission; Insert: Omit<ChkSubmission, 'id' | 'submitted_at'>; Update: Partial<ChkSubmission> }
       chk_submission_items: { Row: ChkSubmissionItem; Insert: Omit<ChkSubmissionItem, 'id'>; Update: Partial<ChkSubmissionItem> }
       chk_settings: { Row: ChkSetting; Insert: ChkSetting; Update: Partial<ChkSetting> }
+      frm_forms: { Row: FrmForm; Insert: Omit<FrmForm, 'id' | 'created_at'>; Update: Partial<FrmForm> }
+      frm_sections: { Row: FrmSection; Insert: Omit<FrmSection, 'id'>; Update: Partial<FrmSection> }
+      frm_items: { Row: FrmItem; Insert: Omit<FrmItem, 'id'>; Update: Partial<FrmItem> }
+      frm_submissions: { Row: FrmSubmission; Insert: Omit<FrmSubmission, 'id' | 'submitted_at'>; Update: Partial<FrmSubmission> }
+      frm_submission_items: { Row: FrmSubmissionItem; Insert: Omit<FrmSubmissionItem, 'id'>; Update: Partial<FrmSubmissionItem> }
     }
   }
 }

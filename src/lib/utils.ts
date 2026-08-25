@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// crypto.randomUUID() só existe em contexto seguro (HTTPS ou localhost) —
+// em produção (Vercel, HTTPS) e no dev local funciona normalmente, mas quebra
+// ao testar pelo celular via IP puro na rede local (ex: http://192.168.x.x).
+export function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 const DAY_NAMES_PT = [
   'domingo',
   'segunda-feira',
@@ -54,6 +68,40 @@ export function getShareText(params: ShareTextParams): string {
     `Hora: ${time}\n\n` +
     status +
     pendingBlock +
+    commentBlock
+}
+
+export interface FormShareTextParams {
+  storeName: string
+  formName: string
+  employeeName: string
+  date: string
+  time: string
+  dayOfWeek: string
+  filledCount: number
+  itemCount: number
+  toBuyItems: string[]
+  comment?: string
+}
+
+export function getFormShareText(params: FormShareTextParams): string {
+  const { storeName, formName, employeeName, date, time, dayOfWeek, filledCount, itemCount, toBuyItems, comment } = params
+
+  const dayLabel = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)
+  const status = `📋 ${filledCount} de ${itemCount} itens respondidos`
+
+  const toBuyBlock = toBuyItems.length > 0
+    ? `\n\n🛒 *Comprar:*\n${toBuyItems.map(t => `• ${t}`).join('\n')}`
+    : '\n\n✅ Nada para comprar!'
+
+  const commentBlock = comment?.trim() ? `\n\n💬 ${comment.trim()}` : ''
+
+  return `*Formulário ${formName} — Loja ${storeName}*\n` +
+    `Funcionário: ${employeeName}\n` +
+    `Data: ${date} · ${dayLabel}\n` +
+    `Hora: ${time}\n\n` +
+    status +
+    toBuyBlock +
     commentBlock
 }
 
