@@ -11,6 +11,7 @@ export default function FormFieldsPage() {
   const { formId } = useParams<{ formId: string }>()
   const navigate = useNavigate()
   const [form, setForm] = useState<FrmForm | null>(null)
+  const [storeName, setStoreName] = useState('')
   const [sections, setSections] = useState<FrmSection[]>([])
   const [items, setItems] = useState<FrmItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,8 +26,12 @@ export default function FormFieldsPage() {
 
   useEffect(() => {
     if (!formId) return
-    supabase.from('frm_forms').select('*').eq('id', formId).single().then(({ data }) => {
+    supabase.from('frm_forms').select('*').eq('id', formId).single().then(async ({ data }) => {
       setForm(data)
+      if (data) {
+        const { data: storeData } = await supabase.from('stores').select('name').eq('id', data.store_id).single()
+        setStoreName(storeData?.name ?? '')
+      }
     })
     loadFields()
   }, [formId])
@@ -140,7 +145,7 @@ export default function FormFieldsPage() {
       <Topbar
         breadcrumbs={[
           { label: 'Formulários', onClick: () => navigate('/admin/forms') },
-          { label: form?.name ?? '…' },
+          { label: form ? `${form.name} · Loja ${storeName}` : '…' },
         ]}
       />
 
