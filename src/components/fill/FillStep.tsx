@@ -12,6 +12,8 @@ interface FillStepProps {
   list: ChkList
   tasks: TaskWithCheck[]
   submitting: boolean
+  comment: string
+  onCommentChange: (value: string) => void
   onToggle: (taskId: string) => void
   onSubmit: (comment: string) => void
   onBack: () => void
@@ -23,12 +25,13 @@ export default function FillStep({
   list,
   tasks,
   submitting,
+  comment,
+  onCommentChange,
   onToggle,
   onSubmit,
   onBack,
 }: FillStepProps) {
   const [filter, setFilter] = useState<Filter>('all')
-  const [comment, setComment] = useState('')
 
   const doneCount = tasks.filter(t => t.checked).length
   const totalCount = tasks.length
@@ -124,8 +127,9 @@ export default function FillStep({
               Observações
             </label>
             <textarea
+              data-sync-key="comment"
               value={comment}
-              onChange={e => setComment(e.target.value)}
+              onChange={e => onCommentChange(e.target.value)}
               placeholder="Algo a reportar? (opcional)"
               rows={3}
               className="

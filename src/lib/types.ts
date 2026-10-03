@@ -121,6 +121,39 @@ export interface ItemWithValue extends FrmItem {
   comprar: boolean
 }
 
+// ── Sessões compartilhadas (checklists e formulários) ────────────────────
+
+export type FillKind = 'form' | 'checklist'
+
+export interface FillSession {
+  id: string
+  kind: FillKind
+  ref_id: string
+  store_id: string
+  day: string
+  status: 'open' | 'submitted' | 'discarded' | 'expired'
+  comment: string
+  started_by_name: string
+  started_at: string
+  updated_at: string
+}
+
+export interface FillSessionParticipant {
+  session_id: string
+  employee_id: string
+  employee_name: string
+  joined_at: string
+}
+
+export interface FillSessionItem {
+  session_id: string
+  item_id: string
+  quantity: number | null
+  flag: boolean
+  updated_by: string | null
+  updated_at: string
+}
+
 // Database type para o cliente Supabase tipado
 export type Database = {
   public: {
@@ -137,6 +170,9 @@ export type Database = {
       frm_items: { Row: FrmItem; Insert: Omit<FrmItem, 'id'>; Update: Partial<FrmItem> }
       frm_submissions: { Row: FrmSubmission; Insert: Omit<FrmSubmission, 'id' | 'submitted_at'>; Update: Partial<FrmSubmission> }
       frm_submission_items: { Row: FrmSubmissionItem; Insert: Omit<FrmSubmissionItem, 'id'>; Update: Partial<FrmSubmissionItem> }
+      fill_sessions: { Row: FillSession; Insert: Omit<FillSession, 'status' | 'comment' | 'started_at' | 'updated_at'> & Partial<Pick<FillSession, 'status' | 'comment' | 'started_at' | 'updated_at'>>; Update: Partial<FillSession> }
+      fill_session_participants: { Row: FillSessionParticipant; Insert: Omit<FillSessionParticipant, 'joined_at'> & Partial<Pick<FillSessionParticipant, 'joined_at'>>; Update: Partial<FillSessionParticipant> }
+      fill_session_items: { Row: FillSessionItem; Insert: Omit<FillSessionItem, 'updated_at' | 'flag' | 'quantity' | 'updated_by'> & Partial<Pick<FillSessionItem, 'updated_at' | 'flag' | 'quantity' | 'updated_by'>>; Update: Partial<FillSessionItem> }
     }
   }
 }

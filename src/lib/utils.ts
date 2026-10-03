@@ -8,6 +8,14 @@ export function cn(...inputs: ClassValue[]) {
 // crypto.randomUUID() só existe em contexto seguro (HTTPS ou localhost) —
 // em produção (Vercel, HTTPS) e no dev local funciona normalmente, mas quebra
 // ao testar pelo celular via IP puro na rede local (ex: http://192.168.x.x).
+// Data local no formato YYYY-MM-DD (toISOString usaria UTC e viraria o dia cedo demais)
+export function localDateISO(date: Date = new Date()): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 export function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()

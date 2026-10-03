@@ -16,6 +16,8 @@ interface FormFillStepProps {
   form: FrmForm
   sections: SectionWithItems[]
   submitting: boolean
+  comment: string
+  onCommentChange: (value: string) => void
   onQuantityChange: (itemId: string, value: number | null) => void
   onComprarToggle: (itemId: string) => void
   onSubmit: (comment: string) => void
@@ -28,13 +30,14 @@ export default function FormFillStep({
   form,
   sections,
   submitting,
+  comment,
+  onCommentChange,
   onQuantityChange,
   onComprarToggle,
   onSubmit,
   onBack,
 }: FormFillStepProps) {
   const [filter, setFilter] = useState<Filter>('all')
-  const [comment, setComment] = useState('')
 
   const allItems = useMemo(() => sections.flatMap(s => s.items), [sections])
   const filledCount = allItems.filter(i => i.quantity !== null).length
@@ -141,8 +144,9 @@ export default function FormFillStep({
               Observações
             </label>
             <textarea
+              data-sync-key="comment"
               value={comment}
-              onChange={e => setComment(e.target.value)}
+              onChange={e => onCommentChange(e.target.value)}
               placeholder="Algo a reportar? (opcional)"
               rows={3}
               className="
@@ -204,6 +208,7 @@ function ItemRow({
         type="number"
         inputMode="decimal"
         min={0}
+        data-sync-key={item.id}
         value={item.quantity ?? ''}
         onChange={e => {
           const raw = e.target.value

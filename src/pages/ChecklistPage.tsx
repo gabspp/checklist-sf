@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getCurrentDayInfo, generateId } from '@/lib/utils'
+import { useFillSession } from '@/hooks/useFillSession'
 import type { Store, ChkEmployee, ChkList, TaskWithCheck } from '@/lib/types'
 import StoreStep from '@/components/fill/StoreStep'
 import EmployeeStep from '@/components/fill/EmployeeStep'
@@ -8,11 +9,12 @@ import TypeStep from '@/components/fill/TypeStep'
 import ListStep from '@/components/fill/ListStep'
 import FillStep from '@/components/fill/FillStep'
 import DoneStep from '@/components/fill/DoneStep'
+import { SessionPrompt, SessionClosed } from '@/components/fill/SessionPrompt'
 import Topbar from '@/components/layout/Topbar'
 import Stage from '@/components/layout/Stage'
 import FormFlow from '@/pages/FormFlow'
 
-type Step = 'store' | 'employee' | 'type' | 'list' | 'resume' | 'fill' | 'done' | 'form'
+type Step = 'store' | 'employee' | 'type' | 'list' | 'fill' | 'done' | 'form'
 
 export default function ChecklistPage() {
   const [step, setStep] = useState<Step>('store')
@@ -32,15 +34,13 @@ export default function ChecklistPage() {
   const [telegramChatId, setTelegramChatId] = useState('')
   const [notificationEmail, setNotificationEmail] = useState('')
 
-  // Draft / resume
-  const draftIdRef = useRef<string | null>(null)
-  const pendingResumeRef = useRef<string[] | null>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [resumeInfo, setResumeInfo] = useState<{
-    employeeName: string
-    startedAt: string
-    checkedIds: string[]
-  } | null>(null)
+  // Sessão compartilhada: as marcações vêm dela, não do estado local
+  const session = useFillSession({
+    kind: 'checklist',
+    refId: step === 'fill' || step === 'done' ? list?.id ?? null : null,
+    storeId: store?.id ?? null,
+    employee,
+  })
 
   // UI state
   const [loadingStores, setLoadingStores] = useState(true)
@@ -48,7 +48,7 @@ export default function ChecklistPage() {
   const [loadingLists, setLoadingLists] = useState(false)
   const [loadingTasks, setLoadingTasks] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [comment, setComment] = useState('')
+  const [submittedComment, setSubmittedComment] = useState('')
   const [submittedAt, setSubmittedAt] = useState<Date>(new Date())
 
   // Load stores on mount
@@ -131,17 +131,10 @@ export default function ChecklistPage() {
       ])
 
       // Tarefas padrão primeiro, depois as específicas do dia
-      let loaded: TaskWithCheck[] = [
+      const loaded: TaskWithCheck[] = [
         ...(defaultTasks ?? []),
         ...(dayTasks ?? []),
       ].map(t => ({ ...t, checked: false }))
-
-      // Apply pending resume if user already confirmed before tasks loaded
-      const pending = pendingResumeRef.current
-      if (pending) {
-        loaded = loaded.map(t => ({ ...t, checked: pending.includes(t.id) }))
-        pendingResumeRef.current = null
-      }
 
       setTasks(loaded)
       setLoadingTasks(false)
@@ -150,99 +143,32 @@ export default function ChecklistPage() {
     loadTasks()
   }, [list])
 
-  // Save draft (debounced) whenever tasks change during fill
-  const saveDraft = useCallback(async (checkedIds: string[]) => {
-    if (!list || !store || !employee) return
-    try {
-      if (draftIdRef.current) {
-        await supabase
-          .from('chk_drafts')
-          .update({ checked_ids: checkedIds, employee_name: employee.name })
-          .eq('id', draftIdRef.current)
-      } else {
-        const { data } = await supabase
-          .from('chk_drafts')
-          .upsert(
-            { store_id: store.id, list_id: list.id, employee_name: employee.name, checked_ids: checkedIds },
-            { onConflict: 'list_id,store_id' }
-          )
-          .select('id')
-          .single()
-        if (data) draftIdRef.current = data.id
-      }
-    } catch { /* silent — draft is not critical */ }
-  }, [list, store, employee])
+  // Tarefas com o estado de marcação vindo da sessão compartilhada
+  const tasksView: TaskWithCheck[] = tasks.map(t => ({
+    ...t,
+    checked: session.items[t.id]?.flag ?? false,
+  }))
 
-  useEffect(() => {
-    if (step !== 'fill' || tasks.length === 0) return
-    const ids = tasks.filter(t => t.checked).map(t => t.id)
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => saveDraft(ids), 600)
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [tasks, step, saveDraft])
-
-  // Handle list selection — check for existing draft first
-  async function handleListSelect(l: ChkList) {
+  function handleListSelect(l: ChkList) {
     setList(l)
-    try {
-      const { data } = await supabase
-        .from('chk_drafts')
-        .select('*')
-        .eq('list_id', l.id)
-        .eq('store_id', store!.id)
-        .maybeSingle()
-
-      if (data && data.checked_ids?.length > 0) {
-        draftIdRef.current = data.id
-        setResumeInfo({
-          employeeName: data.employee_name,
-          startedAt: data.started_at,
-          checkedIds: data.checked_ids,
-        })
-        setStep('resume')
-        return
-      }
-    } catch { /* proceed normally if draft check fails */ }
     setStep('fill')
   }
 
-  function continueFromDraft() {
-    if (resumeInfo) {
-      const ids = resumeInfo.checkedIds
-      if (tasks.length > 0) {
-        setTasks(prev => prev.map(t => ({ ...t, checked: ids.includes(t.id) })))
-      } else {
-        // Tasks still loading — will be applied when they arrive
-        pendingResumeRef.current = ids
-      }
-    }
-    setResumeInfo(null)
-    setStep('fill')
+  function handleToggle(taskId: string) {
+    session.setItem(taskId, { flag: !(session.items[taskId]?.flag ?? false) })
   }
-
-  async function startFresh() {
-    if (draftIdRef.current) {
-      supabase.from('chk_drafts').delete().eq('id', draftIdRef.current)
-      draftIdRef.current = null
-    }
-    setResumeInfo(null)
-    setStep('fill')
-  }
-
-  const handleToggle = useCallback((taskId: string) => {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, checked: !t.checked } : t))
-  }, [])
 
   async function handleSubmit(obs: string) {
     if (!store || !employee || !list) return
     setSubmitting(true)
-    setComment(obs)
+    setSubmittedComment(obs)
 
     const now = new Date()
     setSubmittedAt(now)
 
-    const doneCount = tasks.filter(t => t.checked).length
-    const totalCount = tasks.length
+    const doneCount = tasksView.filter(t => t.checked).length
+    const totalCount = tasksView.length
+    const employeeLabel = session.participantLabel || employee.name
 
     try {
       const submissionId = generateId()
@@ -254,8 +180,8 @@ export default function ChecklistPage() {
           store_id: store.id,
           list_id: list.id,
           list_name: list.name,
-          employee_id: employee.id,
-          employee_name: employee.name,
+          employee_id: session.submitterId ?? employee.id,
+          employee_name: employeeLabel,
           comment: obs.trim() || null,
           total_count: totalCount,
           done_count: doneCount,
@@ -263,23 +189,21 @@ export default function ChecklistPage() {
 
       if (error) throw error
 
-      await supabase.from('chk_submission_items').insert(
-        tasks.map(t => ({
+      const { error: itemsError } = await supabase.from('chk_submission_items').insert(
+        tasksView.map(t => ({
           submission_id: submissionId,
           text: t.text,
           done: t.checked,
         }))
       )
+      if (itemsError) throw itemsError
 
-      // Delete draft on successful submit
-      if (draftIdRef.current) {
-        supabase.from('chk_drafts').delete().eq('id', draftIdRef.current)
-        draftIdRef.current = null
-      }
+      // fecha a sessão para as outras telas só depois que o envio foi salvo
+      await session.markSubmitted()
 
       // --- Notificações ---
-      const mensagem = `✅ *Checklist Finalizado*\n\n*Loja:* ${store.name}\n*Funcionário:* ${employee.name}\n*Lista:* ${list.name}\n*Concluídos:* ${doneCount}/${totalCount}\n*Comentários:* ${obs || 'Nenhum'}`
-      
+      const mensagem = `✅ *Checklist Finalizado*\n\n*Loja:* ${store.name}\n*Funcionário:* ${employeeLabel}\n*Lista:* ${list.name}\n*Concluídos:* ${doneCount}/${totalCount}\n*Comentários:* ${obs || 'Nenhum'}`
+
       // Enviar Telegram
       if (telegramToken && telegramChatId) {
         fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
@@ -297,7 +221,7 @@ export default function ChecklistPage() {
           body: JSON.stringify({
             _subject: `Checklist Finalizado - ${store.name}`,
             Loja: store.name,
-            Funcionário: employee.name,
+            Funcionário: employeeLabel,
             Lista: list.name,
             Concluídos: `${doneCount}/${totalCount}`,
             Comentários: obs || 'Nenhum'
@@ -316,15 +240,12 @@ export default function ChecklistPage() {
   }
 
   function reset() {
-    draftIdRef.current = null
-    pendingResumeRef.current = null
-    setResumeInfo(null)
     setStep('store')
     setStore(null)
     setEmployee(null)
     setList(null)
     setTasks([])
-    setComment('')
+    setSubmittedComment('')
   }
 
   // ── Steps ──────────────────────────────────────────────────────────────────
@@ -390,58 +311,72 @@ export default function ChecklistPage() {
     )
   }
 
-  if (step === 'resume' && store && employee && list && resumeInfo) {
-    const time = new Date(resumeInfo.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    const count = resumeInfo.checkedIds.length
-
-    return (
-      <div className="flex flex-col h-full">
-        <Topbar
-          breadcrumbs={[
-            { label: `Loja ${store.name}`, onClick: () => setStep('store') },
-            { label: employee.name, onClick: () => setStep('employee') },
-            { label: list.name, onClick: () => setStep('list') },
-          ]}
-        />
-        <Stage>
-          <div className="py-6">
-            <p className="text-[0.74rem] font-semibold uppercase tracking-widest text-ink-soft mb-5">
-              Lista em andamento
-            </p>
-            <p className="text-base text-ink mb-1">
-              <span className="font-medium">{resumeInfo.employeeName}</span> começou essa lista às {time} e não terminou.
-            </p>
-            <p className="text-sm text-ink-muted mb-8">
-              {count} {count === 1 ? 'item marcado' : 'itens marcados'} até agora.
-            </p>
-            <div className="flex flex-col gap-3 max-w-xs">
-              <button
-                onClick={continueFromDraft}
-                className="h-12 rounded-lg bg-ink text-bg text-sm font-medium hover:bg-ink-soft transition-colors"
-              >
-                Continuar de onde parou
-              </button>
-              <button
-                onClick={startFresh}
-                className="h-12 rounded-lg border border-rule-soft text-ink-soft text-sm hover:bg-bg-soft transition-colors"
-              >
-                Começar do zero
-              </button>
-            </div>
-          </div>
-        </Stage>
-      </div>
-    )
-  }
-
   if (step === 'fill' && store && employee && list) {
+    const breadcrumbs = [
+      { label: `Loja ${store.name}`, onClick: () => setStep('store') },
+      { label: employee.name, onClick: () => setStep('employee') },
+      { label: list.name, onClick: () => setStep('list') },
+    ]
+
+    if (session.status === 'prompt' && session.existing) {
+      return (
+        <SessionPrompt
+          noun="lista"
+          existing={session.existing}
+          onlineNames={session.onlineNames}
+          meName={employee.name}
+          busy={false}
+          breadcrumbs={breadcrumbs}
+          onContinue={() => { void session.continueExisting() }}
+          onStartFresh={() => { void session.startFresh() }}
+        />
+      )
+    }
+
+    if (session.status === 'closed' && session.closedReason) {
+      return (
+        <SessionClosed
+          noun="lista"
+          reason={session.closedReason}
+          breadcrumbs={breadcrumbs}
+          onBack={reset}
+        />
+      )
+    }
+
+    if (session.status === 'error') {
+      return (
+        <div className="flex flex-col h-full">
+          <Topbar breadcrumbs={breadcrumbs} />
+          <Stage>
+            <p className="text-sm text-ink-muted py-8">Não foi possível abrir essa lista. Verifique a conexão e tente de novo.</p>
+          </Stage>
+        </div>
+      )
+    }
+
+    if (session.status !== 'ready' || loadingTasks) {
+      return (
+        <div className="flex flex-col h-full">
+          <Topbar breadcrumbs={breadcrumbs} />
+          <Stage>
+            <div className="space-y-2 py-8">
+              {[1, 2, 3].map(i => <div key={i} className="h-12 rounded-lg bg-bg-soft animate-pulse" />)}
+            </div>
+          </Stage>
+        </div>
+      )
+    }
+
     return (
       <FillStep
         store={store}
         employee={employee}
         list={list}
-        tasks={loadingTasks ? [] : tasks}
+        tasks={tasksView}
         submitting={submitting}
+        comment={session.comment}
+        onCommentChange={session.setComment}
         onToggle={handleToggle}
         onSubmit={handleSubmit}
         onBack={() => setStep('list')}
@@ -453,10 +388,10 @@ export default function ChecklistPage() {
     return (
       <DoneStep
         store={store}
-        employee={employee}
+        employee={{ ...employee, name: session.participantLabel || employee.name }}
         list={list}
-        tasks={tasks}
-        comment={comment}
+        tasks={tasksView}
+        comment={submittedComment}
         submittedAt={submittedAt}
         whatsappNumber={whatsappNumber}
         onNewChecklist={reset}

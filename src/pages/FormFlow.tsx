@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { generateId } from '@/lib/utils'
+import { useFillSession } from '@/hooks/useFillSession'
 import type { ChkEmployee, FrmForm, ItemWithValue, Store } from '@/lib/types'
 import FormSelectStep from '@/components/fill/FormSelectStep'
 import FormFillStep, { type SectionWithItems } from '@/components/fill/FormFillStep'
 import FormDoneStep from '@/components/fill/FormDoneStep'
+import { SessionPrompt, SessionClosed } from '@/components/fill/SessionPrompt'
+import Topbar from '@/components/layout/Topbar'
+import Stage from '@/components/layout/Stage'
 
 type Step = 'select' | 'fill' | 'done'
 
@@ -35,12 +39,20 @@ export default function FormFlow({
   const [loadingForms, setLoadingForms] = useState(true)
   const [form, setForm] = useState<FrmForm | null>(null)
 
+  // estrutura do formulário (seções e itens) — as respostas vêm da sessão
   const [sections, setSections] = useState<SectionWithItems[]>([])
   const [loadingSections, setLoadingSections] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
-  const [comment, setComment] = useState('')
+  const [submittedComment, setSubmittedComment] = useState('')
   const [submittedAt, setSubmittedAt] = useState<Date>(new Date())
+
+  const session = useFillSession({
+    kind: 'form',
+    refId: step === 'fill' || step === 'done' ? form?.id ?? null : null,
+    storeId: store.id,
+    employee,
+  })
 
   useEffect(() => {
     setLoadingForms(true)
@@ -86,35 +98,36 @@ export default function FormFlow({
     setLoadingSections(false)
   }
 
+  // estrutura + respostas atuais da sessão compartilhada
+  const sectionsView: SectionWithItems[] = sections.map(s => ({
+    section: s.section,
+    items: s.items.map(i => ({
+      ...i,
+      quantity: session.items[i.id]?.quantity ?? null,
+      comprar: session.items[i.id]?.flag ?? false,
+    })),
+  }))
+
   function handleQuantityChange(itemId: string, value: number | null) {
-    setSections(prev =>
-      prev.map(s => ({
-        ...s,
-        items: s.items.map(i => (i.id === itemId ? { ...i, quantity: value } : i)),
-      }))
-    )
+    session.setItem(itemId, { quantity: value })
   }
 
   function handleComprarToggle(itemId: string) {
-    setSections(prev =>
-      prev.map(s => ({
-        ...s,
-        items: s.items.map(i => (i.id === itemId ? { ...i, comprar: !i.comprar } : i)),
-      }))
-    )
+    session.setItem(itemId, { flag: !(session.items[itemId]?.flag ?? false) })
   }
 
   async function handleSubmit(obs: string) {
     if (!form) return
     setSubmitting(true)
-    setComment(obs)
+    setSubmittedComment(obs)
 
     const now = new Date()
     setSubmittedAt(now)
 
-    const allItems = sections.flatMap(s => s.items)
+    const allItems = sectionsView.flatMap(s => s.items)
     const filledCount = allItems.filter(i => i.quantity !== null).length
     const itemCount = allItems.length
+    const employeeLabel = session.participantLabel || employee.name
 
     try {
       const submissionId = generateId()
@@ -126,8 +139,8 @@ export default function FormFlow({
           store_id: store.id,
           form_id: form.id,
           form_name: form.name,
-          employee_id: employee.id,
-          employee_name: employee.name,
+          employee_id: session.submitterId ?? employee.id,
+          employee_name: employeeLabel,
           comment: obs.trim() || null,
           item_count: itemCount,
           filled_count: filledCount,
@@ -135,8 +148,8 @@ export default function FormFlow({
 
       if (error) throw error
 
-      await supabase.from('frm_submission_items').insert(
-        sections.flatMap(s =>
+      const { error: itemsError } = await supabase.from('frm_submission_items').insert(
+        sectionsView.flatMap(s =>
           s.items.map(i => ({
             submission_id: submissionId,
             section_name: s.section.name,
@@ -146,9 +159,13 @@ export default function FormFlow({
           }))
         )
       )
+      if (itemsError) throw itemsError
+
+      // fecha a sessão para as outras telas só depois que o envio foi salvo
+      await session.markSubmitted()
 
       const toBuy = allItems.filter(i => i.comprar).map(i => i.name)
-      const mensagem = `📋 *Formulário Finalizado*\n\n*Loja:* ${store.name}\n*Funcionário:* ${employee.name}\n*Formulário:* ${form.name}\n*Respondidos:* ${filledCount}/${itemCount}\n*Comprar:* ${toBuy.length > 0 ? toBuy.join(', ') : 'Nada'}\n*Comentários:* ${obs || 'Nenhum'}`
+      const mensagem = `📋 *Formulário Finalizado*\n\n*Loja:* ${store.name}\n*Funcionário:* ${employeeLabel}\n*Formulário:* ${form.name}\n*Respondidos:* ${filledCount}/${itemCount}\n*Comprar:* ${toBuy.length > 0 ? toBuy.join(', ') : 'Nada'}\n*Comentários:* ${obs || 'Nenhum'}`
 
       if (telegramToken && telegramChatId) {
         fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
@@ -165,7 +182,7 @@ export default function FormFlow({
           body: JSON.stringify({
             _subject: `Formulário Finalizado - ${store.name}`,
             Loja: store.name,
-            Funcionário: employee.name,
+            Funcionário: employeeLabel,
             Formulário: form.name,
             Respondidos: `${filledCount}/${itemCount}`,
             Comprar: toBuy.length > 0 ? toBuy.join(', ') : 'Nada',
@@ -183,6 +200,12 @@ export default function FormFlow({
     }
   }
 
+  const breadcrumbs = [
+    { label: `Loja ${store.name}`, onClick: onBack },
+    { label: employee.name, onClick: () => setStep('select') },
+    { label: form?.name ?? '' },
+  ]
+
   if (step === 'select') {
     return (
       <FormSelectStep
@@ -197,13 +220,65 @@ export default function FormFlow({
   }
 
   if (step === 'fill' && form) {
+    if (session.status === 'prompt' && session.existing) {
+      return (
+        <SessionPrompt
+          noun="contagem"
+          existing={session.existing}
+          onlineNames={session.onlineNames}
+          meName={employee.name}
+          busy={false}
+          breadcrumbs={breadcrumbs}
+          onContinue={() => { void session.continueExisting() }}
+          onStartFresh={() => { void session.startFresh() }}
+        />
+      )
+    }
+
+    if (session.status === 'closed' && session.closedReason) {
+      return (
+        <SessionClosed
+          noun="contagem"
+          reason={session.closedReason}
+          breadcrumbs={breadcrumbs}
+          onBack={onFinish}
+        />
+      )
+    }
+
+    if (session.status === 'error') {
+      return (
+        <div className="flex flex-col h-full">
+          <Topbar breadcrumbs={breadcrumbs} />
+          <Stage>
+            <p className="text-sm text-ink-muted py-8">Não foi possível abrir essa contagem. Verifique a conexão e tente de novo.</p>
+          </Stage>
+        </div>
+      )
+    }
+
+    if (session.status !== 'ready' || loadingSections) {
+      return (
+        <div className="flex flex-col h-full">
+          <Topbar breadcrumbs={breadcrumbs} />
+          <Stage>
+            <div className="space-y-2 py-8">
+              {[1, 2, 3].map(i => <div key={i} className="h-12 rounded-lg bg-bg-soft animate-pulse" />)}
+            </div>
+          </Stage>
+        </div>
+      )
+    }
+
     return (
       <FormFillStep
         store={store}
         employee={employee}
         form={form}
-        sections={loadingSections ? [] : sections}
+        sections={sectionsView}
         submitting={submitting}
+        comment={session.comment}
+        onCommentChange={session.setComment}
         onQuantityChange={handleQuantityChange}
         onComprarToggle={handleComprarToggle}
         onSubmit={handleSubmit}
@@ -216,10 +291,10 @@ export default function FormFlow({
     return (
       <FormDoneStep
         store={store}
-        employee={employee}
+        employee={{ ...employee, name: session.participantLabel || employee.name }}
         form={form}
-        items={sections.flatMap(s => s.items)}
-        comment={comment}
+        items={sectionsView.flatMap(s => s.items)}
+        comment={submittedComment}
         submittedAt={submittedAt}
         whatsappNumber={whatsappNumber}
         onNewForm={onFinish}
