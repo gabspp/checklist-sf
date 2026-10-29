@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, X, Trash2 } from 'lucide-react'
+import { ChevronDown, X, Trash2, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { formatDateBR, cn } from '@/lib/utils'
+import { formatDateBR, localDateISO, cn } from '@/lib/utils'
 import Stage, { SectionHead } from '@/components/layout/Stage'
 import Topbar from '@/components/layout/Topbar'
 import type { ChkSubmission, ChkSubmissionItem, FrmSubmission, FrmSubmissionItem, Store } from '@/lib/types'
@@ -17,6 +17,17 @@ interface FormSubmissionRow extends FrmSubmission {
   store_name?: string
   items?: FrmSubmissionItem[]
   toBuyCount: number
+}
+
+// Agrupa os itens de uma submissão de formulário por seção, preservando a ordem em que aparecem
+function groupBySection(items: FrmSubmissionItem[]): [string, FrmSubmissionItem[]][] {
+  const grouped = new Map<string, FrmSubmissionItem[]>()
+  for (const item of items) {
+    const list = grouped.get(item.section_name)
+    if (list) list.push(item)
+    else grouped.set(item.section_name, [item])
+  }
+  return [...grouped.entries()]
 }
 
 export default function ReportsPage() {
@@ -115,7 +126,7 @@ function ChecklistReports({ stores }: { stores: Store[] }) {
       .from('chk_submission_items')
       .select('*')
       .eq('submission_id', id)
-      .order('id')
+      .order('text')
     setExpandedItems(data ?? [])
     setLoadingItems(false)
   }
@@ -329,6 +340,7 @@ function FormReports({ stores }: { stores: Store[] }) {
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterFrom, setFilterFrom] = useState('')
   const [filterTo, setFilterTo] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   const totalCount = submissions.length
   const withToBuyCount = submissions.filter(s => s.toBuyCount > 0).length
@@ -387,7 +399,8 @@ function FormReports({ stores }: { stores: Store[] }) {
       .from('frm_submission_items')
       .select('*')
       .eq('submission_id', id)
-      .order('id')
+      .order('section_name')
+      .order('item_name')
     setExpandedItems(data ?? [])
     setLoadingItems(false)
   }
@@ -407,6 +420,43 @@ function FormReports({ stores }: { stores: Store[] }) {
     setFilterEmployee('')
     setFilterFrom('')
     setFilterTo('')
+  }
+
+  // Exporta o relatório de uma única submissão (os itens já carregados no painel expandido)
+  async function exportSubmissionXLS(sub: FormSubmissionRow) {
+    setExporting(true)
+    try {
+      // carregado sob demanda — é uma lib pesada e só o admin usa essa exportação
+      const XLSX = await import('xlsx')
+
+      const header: (string | number)[][] = [
+        ['Formulário', sub.form_name],
+        ['Loja', sub.store_name ?? ''],
+        ['Funcionário', sub.employee_name],
+        ['Data', formatDateBR(sub.submitted_at)],
+        ['Observação', sub.comment ?? ''],
+        [],
+        ['Seção', 'Item', 'Quantidade', 'Comprar'],
+      ]
+      const itemRows = expandedItems.map(item => [
+        item.section_name,
+        item.item_name,
+        item.quantity ?? '',
+        item.comprar ? 'Sim' : 'Não',
+      ])
+
+      const sheet = XLSX.utils.aoa_to_sheet([...header, ...itemRows])
+      sheet['!cols'] = [{ wch: 20 }, { wch: 28 }, { wch: 10 }, { wch: 9 }]
+
+      const book = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(book, sheet, 'Submissão')
+
+      const safe = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '')
+      const filename = `${safe(sub.form_name)}_${safe(sub.employee_name)}_${localDateISO(new Date(sub.submitted_at))}.xlsx`
+      XLSX.writeFile(book, filename)
+    } finally {
+      setExporting(false)
+    }
   }
 
   const hasFilters = filterStore || filterForm || filterEmployee || filterFrom || filterTo
@@ -558,23 +608,52 @@ function FormReports({ stores }: { stores: Store[] }) {
                         <div className="h-8 bg-bg-soft rounded animate-pulse" />
                       ) : (
                         <>
+                          <div className="flex justify-end mb-2">
+                            <button
+                              onClick={() => exportSubmissionXLS(sub)}
+                              disabled={exporting}
+                              className="
+                                text-xs px-2.5 py-1 rounded-md border border-rule-soft text-ink-soft
+                                flex items-center gap-1.5
+                                hover:border-rule hover:text-ink transition-colors
+                                disabled:opacity-40 disabled:cursor-not-allowed
+                              "
+                            >
+                              <Download className="w-3 h-3" />
+                              {exporting ? 'Exportando…' : 'Exportar XLS'}
+                            </button>
+                          </div>
                           {sub.comment && (
                             <p className="text-xs text-ink-muted mb-2 italic">"{sub.comment}"</p>
                           )}
-                          {expandedItems.filter(i => i.comprar).length === 0 ? (
-                            <p className="text-xs text-ink-muted">Nada para comprar.</p>
+                          {expandedItems.length === 0 ? (
+                            <p className="text-xs text-ink-muted">Nenhum item.</p>
                           ) : (
-                            <ul className="space-y-0.5">
-                              {expandedItems.filter(i => i.comprar).map(item => (
-                                <li key={item.id} className="flex items-baseline gap-1.5 text-xs text-brand-rosa">
-                                  <span>·</span>
-                                  <span>{item.item_name}</span>
-                                  {item.quantity !== null && (
-                                    <span className="text-ink-muted">— {item.quantity}</span>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
+                            groupBySection(expandedItems).map(([sectionName, items]) => (
+                              <div key={sectionName} className="mb-3 last:mb-0">
+                                <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-ink-muted mb-1">
+                                  {sectionName}
+                                </p>
+                                <ul className="space-y-0.5">
+                                  {items.map(item => (
+                                    <li key={item.id} className="flex items-baseline gap-1.5 text-xs">
+                                      <span className="text-ink-muted">·</span>
+                                      <span className={item.comprar ? 'text-brand-rosa' : 'text-ink-soft'}>
+                                        {item.item_name}
+                                      </span>
+                                      <span className="text-ink-muted">
+                                        — {item.quantity !== null ? item.quantity : 'não preenchido'}
+                                      </span>
+                                      {item.comprar && (
+                                        <span className="text-[0.6rem] uppercase tracking-wide text-brand-rosa border border-brand-rosa/40 rounded px-1">
+                                          comprar
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))
                           )}
                         </>
                       )}
